@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:flow/src/cache.dart';
+import 'package:flow/src/exceptions/flow_exception.dart';
+
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
 import 'builders.dart';
@@ -26,8 +29,8 @@ extension FlowX<T> on Flow<T> {
   /// [transform] : A function that takes a value of type `T` (the input
   /// type of the flow) and returns a value of type `U` (the output type
   /// of the map operation).
-  Flow<U> map<U>(U Function(T value) transform) => flow((collector) async {
-    await collect((value) => collector.emit(transform(value)));
+  Flow<U> map<U>(FutureOr<U> Function(T value) transform) => flow((collector) async {
+    await collect((value) async => collector.emit(await transform(value)));
   });
 
   /// Applies a transformation function and flattens the resulting streams.
@@ -39,8 +42,8 @@ extension FlowX<T> on Flow<T> {
   /// Example:
   /// ```dart
   ///   flowOf([1, 2, 3])
-  ///   .flatMap((value) => flowOf([4, 5, 6]))
-  ///   .collect(print);
+  ///     .flatMap((value) => flowOf([4, 5, 6]))
+  ///     .collect(print);
   ///
   /// // Output:
   /// // 4 -> 5 -> 6
@@ -50,12 +53,14 @@ extension FlowX<T> on Flow<T> {
   /// of the flow) and returns a `Flow<U>` (the output type can be anything
   /// that implements `Flow`).
   Flow<U> flatMap<U>(Flow<U> Function(T value) action) => flow((collector) async {
-    final futures = <Future<void>>[];
+    await collect((value) async => await action(value).collect(collector.emit));
+  });
+
+  /// TODO document
+  Flow<T> filter(FutureOr<bool> Function(T value) action) => flow((collector) async {
     await collect((value) async {
-      final newFlowFuture = action(value).collect(collector.emit);
-      futures.add(Future.value(newFlowFuture));
+      if (await action(value)) collector.emit(value);
     });
-    await Future.wait(futures);
   });
 
   /// Handles errors that occur within the flow.
@@ -99,7 +104,7 @@ extension FlowX<T> on Flow<T> {
       try {
         await collect(collector.emit);
       } catch (e) {
-        action.call(e as Exception, collector);
+        action.call(e.toException(), collector);
       }
     });
   }
@@ -113,8 +118,8 @@ extension FlowX<T> on Flow<T> {
   /// Example:
   /// ```dart
   ///   flow((collector) => collector.emit('World!'))
-  ///   .onStart((collector) => collector.emit('Hello,'));
-  ///   .collect(stdout.write)
+  ///     .onStart((collector) => collector.emit('Hello,'));
+  ///     .collect(stdout.write)
   ///
   ///   // Outputs:
   ///   // Hello, World!
@@ -129,6 +134,83 @@ extension FlowX<T> on Flow<T> {
     } finally  {}
     await collect(collector.emit);
   });
+
+  /// Returns a flow that invokes the given [action] before each value of the
+  /// upstream flow is emitted downstream.
+  ///
+  /// This function allows you to perform actions on each individual value that
+  /// flows through the pipeline, potentially performing side effects before
+  /// the value is sent further downstream.
+  ///
+  /// Example:
+  /// ```dart
+  ///  flow((collector) => collector.emit(1, 2, 3))
+  ///    .onEach((value) => print('Emitting value: $value'))
+  ///    .collect(print);
+  ///
+  ///  // Output:
+  ///  // Emitting value: 1
+  ///  // 1
+  ///  // Emitting value: 2
+  ///  // 2
+  ///  // Emitting value: 3
+  ///  // 3
+  /// ```
+  ///
+  /// [action] : A function that takes a value of type `T` and potentially
+  /// performs asynchronous operations. This function is called for each value
+  /// emitted by the source Flow.
+  Flow<T> onEach(FutureOr<void> Function(T value) action) => flow((collector) async {
+    await collect((value) async {
+      await action(value);
+      collector.emit(value);
+    });
+  });
+
+  /// Creates a new flow that executes the provided action ([action]) only
+  /// if the original flow emits no events (i.e., is empty).
+  ///
+  /// This function is useful for scenarios where you want to perform
+  /// specific logic when a flow is empty. For example, you might want to
+  /// emit a default value, fetch data from another source, or trigger
+  /// some side effect when no data is available in the original flow.
+  ///
+  /// Example:
+  /// ```dart
+  /// Flow<int> numbers = Flow.from([1, 2, 3]);
+  ///
+  /// // This action will NOT be executed because the original flow is not empty
+  /// Flow<int> withEmptyHandling = numbers
+  ///   .onEmpty((collector) => collector.emit(0));
+  ///
+  /// withEmptyHandling.collect(print); // Output: 1, 2, 3
+  ///
+  /// Flow<String> emptyStringFlow = Flow.empty();
+  ///
+  /// // This action WILL be executed because the original flow is empty
+  /// Flow<String> withEmptyAction = emptyStringFlow
+  ///   .onEmpty((collector) => collector.emit("No data available"));
+  ///
+  /// withEmptyAction.collect(print); // Output: No data available
+  /// ```
+  ///
+  /// [action] : A function that accepts a `FlowCollector<T>` as its parameter.
+  /// The provided action will be executed only if the original flow doesn't
+  /// emit any values. Otherwise, the original flow's events are simply forwarded
+  /// downstream without any modification.
+  Flow<T> onEmpty(FutureOr<void> Function(FlowCollector<T>) action) {
+    return flow((collector) async {
+      bool isEmpty = true;
+      await collect((value) {
+        isEmpty = false;
+        collector.emit(value);
+      });
+
+      if (isEmpty) {
+        await action.call(collector);
+      }
+    });
+  }
 
   /// Executes an action upon flow completion (needs improvement).
   ///
@@ -149,7 +231,7 @@ extension FlowX<T> on Flow<T> {
       try {
         await collect(collector.emit);
       } catch (e) {
-        action(e as Exception, collector);
+        action(e.toException(), collector);
         rethrow;
       }
 
@@ -192,7 +274,7 @@ extension FlowX<T> on Flow<T> {
         try {
           await collect(collector.emit);
         } catch (e) {
-          if (await action(e as Exception, attempts)) {
+          if (await action(e.toException(), attempts)) {
             attempts++;
             await internalRetry();
           } else {
@@ -201,6 +283,57 @@ extension FlowX<T> on Flow<T> {
         }
       }
       await internalRetry();
+    });
+  }
+
+  /// Creates a new Flow that applies a caching strategy using the provided
+  /// `CacheFlow` and `CacheStrategy` objects.
+  ///
+  /// This function allows you to integrate caching logic into your data flows.
+  /// It takes a `CacheFlow` object that defines the caching behavior
+  /// (e.g., reading, writing from cache), a `CacheStrategy` object that
+  /// determines the specific caching strategy to employ
+  /// (e.g., `FetchOrElseCache`, `CacheThenFetch`), and a `FlowCollector` to
+  /// emit data downstream.
+  ///
+  /// The provided `CacheStrategy` handles the interaction between the source
+  /// Flow (`this` in the context of the function) and the `CacheFlow` to
+  /// implement the desired caching behavior.
+  ///
+  /// Example:
+  ///
+  /// ```dart
+  /// // Example CacheFlow implementation (simplified)
+  /// class InMemoryCache<T> implements CacheFlow<T> {
+  ///   // ... cache implementation details
+  /// }
+  ///
+  /// // Example CacheStrategy implementation (simplified)
+  /// class FetchOrElseCache<T> implements CacheStrategy<T> {
+  ///   @override
+  ///   FutureOr<void> handle(CacheFlow<T> cacheFlow, Flow<T> sourceFlow,
+  ///             FlowCollector collector) async {
+  ///     // ... implementation to fetch or read from cache
+  ///   }
+  /// }
+  ///
+  /// // Usage
+  /// flowOf([1, 2, 3])
+  ///   .cache(InMemoryCache<int>(), FetchOrElseCache<int>())
+  ///   .collect(print);
+  /// ```
+  ///
+  /// [cacheFlow] : An object implementing the `CacheFlow` interface that
+  /// provides caching functionalities (read, write, etc.).
+  /// [strategy] : An object implementing the `CacheStrategy` interface that
+  /// defines the specific caching strategy to be used with the `CacheFlow`.
+  ///
+  /// Returns:
+  ///  A new Flow that incorporates the caching logic defined by the provided
+  ///  `CacheStrategy` and `CacheFlow` objects.
+  Flow<T> cache(CacheFlow<T> cacheFlow, CacheStrategy<T> strategy) {
+    return flow((collector) async {
+      await strategy.handle(cacheFlow, this, collector);
     });
   }
 }
@@ -216,7 +349,6 @@ extension StreamX<T> on Stream<T> {
     });
   }
 }
-
 
 ///
 ///

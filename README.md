@@ -27,7 +27,7 @@ The Flow API provides functionalities for building asynchronous data processing 
 
 **Getting Started:**
 
-1. Install the Flow package (assuming it's a Dart package):
+1. Install the Flow package:
    ```bash
    pub add flow
    ```
