@@ -24,6 +24,8 @@ jobs:
           flutter clean
           flutter pub get
           flutter pub global activate junitreport
+      - name: Run test
+        run: | 
           flutter test --machine --coverage | tojunit -o report.xml
       - name: Create Archive
         run: git archive --format=tar.gz --output=repository.tar.gz HEAD
