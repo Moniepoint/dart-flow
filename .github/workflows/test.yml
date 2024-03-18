@@ -1,0 +1,45 @@
+name: Test dart-flow
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - *
+
+      # Publish using the reusable workflow from dart-lang.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Setup dart
+        uses: dart-lang/setup-dart@v1
+      - name: Install dependencies
+        run: |
+          flutter clean
+          flutter pub get
+          dart run build_runner build -d
+          flutter pub global activate junitreport
+          flutter test --machine --coverage | tojunit -o report.xml
+      - name: Create Archive
+        uses: actions/upload-artifact@v4
+        run: git archive --format=tar.gz --output=repository.tar.gz HEAD
+        with:
+          name: repository-archive
+          path: repository.tar.gz
+          retention-days: 7
+      - name: Archive coverage result
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-result
+          path: |
+            coverage
+            report.xml
+          retention-days: 7
+
