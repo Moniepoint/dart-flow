@@ -23,7 +23,6 @@ jobs:
         run: |
           flutter clean
           flutter pub get
-          dart run build_runner build -d
           flutter pub global activate junitreport
           flutter test --machine --coverage | tojunit -o report.xml
       - name: Create Archive
