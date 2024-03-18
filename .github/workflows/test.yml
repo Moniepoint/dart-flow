@@ -3,12 +3,11 @@ name: Test dart-flow
 on:
   push:
     branches:
-      - "main"
+      - 'main'
   pull_request:
     branches:
-      - "*"
+      - '*'
 
-      # Publish using the reusable workflow from dart-lang.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,13 +27,14 @@ jobs:
           flutter pub global activate junitreport
           flutter test --machine --coverage | tojunit -o report.xml
       - name: Create Archive
-        uses: actions/upload-artifact@v4
         run: git archive --format=tar.gz --output=repository.tar.gz HEAD
+      - name: Upload Repository Archive
+        uses: actions/upload-artifact@v4
         with:
           name: repository-archive
           path: repository.tar.gz
           retention-days: 7
-      - name: Archive coverage result
+      - name: Upload Code Coverage Archive
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage-result
