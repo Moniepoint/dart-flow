@@ -11,7 +11,8 @@ import 'collectors/collectors.dart';
 /// Experimental Flow API for asynchronous data processing.
 ///
 /// This abstract interface represents a flow of values of type `T` within the
-/// Flow API. It provides a foundation for building asynchronous data pipelines.
+/// Flow API. It provides a foundation for building asynchronous data pipelines
+/// in a structured pattern.
 @ExperimentalFlowApi()
 abstract interface class Flow<T> {
   /// Creates an empty Flow instance.
@@ -44,20 +45,29 @@ abstract class AbstractFlow<T> extends Flow<T> {
     StreamController<T> controller = StreamController(sync: false);
     final flowCollector = FlowCollectorImpl<T>(controller.sink);
     final Completer completer = Completer();
+    final listenableFuture = <Future>[];
+
     controller.onListen = () async {
       try {
         await collectSafely(flowCollector);
+        await Future.wait(listenableFuture);
         completer.complete();
       } catch (e) {
         controller.addError(e);
       }
     };
 
-    scheduleMicrotask(() {
-      controller.stream.listen((event) {
-        collector.call(event);
+    scheduleMicrotask(() async {
+      controller.stream.listen((event) async {
+        listenableFuture.add(Future.value(collector.call(event)));
       }, onError: (e) {
-        if (!completer.isCompleted) completer.completeError(e);
+        if (!completer.isCompleted) {
+          if (e is TypeError) {
+            completer.completeError(Exception(e));
+            return;
+          }
+          completer.completeError(e);
+        }
       });
     });
 

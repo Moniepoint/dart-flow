@@ -1,4 +1,25 @@
-## 0.0.1 (2024-03-14) **Initial Release**
+## 0.0.1-alpha02 (2024-03-18)
+
+**New Features:**
+
+* **Flow Transformations:**
+  * `onEach<U>(FutureOr<void> Function(U value) action)`: Enables executing actions on each value emitted by the flow, allowing for side effects or value modifications before passing them downstream.
+  * `onEmpty(FutureOr<void> Function(FlowCollector<T>) action)`: Provides a mechanism to handle empty flows by executing a specific action if no elements are emitted.
+* **Caching Support:**
+  * `CacheFlow<T>`: Represents a data source or storage mechanism for caching values of type `T`.
+  * **Predefined Cache Strategies:** This release introduces several concrete implementations of the `CacheStrategy<T>` interface, offering various cache invalidation and retrieval behaviors:
+    * `FetchOrElseCache<T>`: Fetches data from the primary source and caches the result. If fetching fails, retrieves data from the cache if available.
+    * `CacheOrElseFetch<T>`: Attempts to retrieve data from the cache first. If the cache is empty or invalid, fetches fresh data and updates the cache.
+    * `CacheThenFetch<T>`: Prioritizes cached data and updates the cache only after fetching new data (if successful).
+    * `CacheAndFetch<T>`: Attempts to retrieve data concurrently from both the cache and the primary source. Emits cached data first if valid, but also fetches fresh data to update the cache.
+    * `CacheOrStaleCacheOnFetchError<T>`: Prioritizes cached data, even if stale. Fetches from the primary source, but if fetching fails, uses potentially outdated cached data as a fallback.
+
+**API Changes:**
+
+* Updates the implementation of `collect` to ensure it waits for all its callbacks to complete before returning. This addresses the previously mentioned limitation in `onCompletion`.
+
+
+## v0.0.1-alpha (2024-03-14) **Initial Release**
 
 This initial release introduces the foundation for the Flow API, providing functionalities for building asynchronous data processing pipelines. It includes the following core features:
 

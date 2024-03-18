@@ -71,7 +71,7 @@ void main() {
       collector.emit("B");
       collector.emit("C");
       throw Exception('Loveliness');
-    }).retryWhen((cause, attempts) {
+    }).retryWhen((cause, attempts) async {
       if (attempts < 2) {
         return true;
       }
@@ -109,5 +109,28 @@ void main() {
       '1','2', '3', emitsDone
     ]));
   });
+
+  test('Test that onEmpty is called when the flow doesnt emit any value', () async {
+    final fl = flow<String>((collector) {}).onEmpty((collector) {
+      collector.emit('Empty');
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'Empty', emitsDone
+    ]));
+  });
+
+  test('Test that onEmpty IS NOT called when the flow emits any value', () async {
+    final fl = flow<String>((collector) {
+      collector.emit('NotEmpty');
+    }).onEmpty((collector) {
+      collector.emit('Empty');
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'NotEmpty', emitsDone
+    ]));
+  });
+
 }
 

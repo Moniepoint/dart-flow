@@ -1,0 +1,3 @@
+- Ensure you document every api
+- Ensure you write test for every functionality added or modified
+- Update the change log for changes added
