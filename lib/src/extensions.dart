@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flow/src/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
+import 'package:flow/src/operators/distinct.dart';
 
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
@@ -166,6 +167,42 @@ extension FlowX<T> on Flow<T> {
       collector.emit(value);
     });
   });
+
+  /// A Function that returns a flow where all subsequent repetitions of the same value are filtered out.
+  /// ```dart
+  /// flow<DummyClass>((collector) {
+  ///   collector.emit(DummyClass(foo: 1));
+  ///   collector.emit(DummyClass(foo: 2));
+  ///   collector.emit(DummyClass(foo: 3));
+  ///   collector.emit(DummyClass(foo: 2));
+  ///   collector.emit(DummyClass(foo: 4));
+  /// })
+  /// .distinctUntilChanged(
+  ///   keySelector: (value) => value.foo,
+  ///   areEquivalent: (previousKey, nextKey) => (previousKey ?? 0) > nextKey!,
+  /// )
+  /// .collect((value) => print(value.foo));
+  /// ```
+  /// Output: 1,2,3,4
+  Flow<T> distinctUntilChanged({bool Function(T? previousKey, T? nextKey)? areEquivalent}) =>
+      Distinct(upstreamFlow: this, equivalenceMethod: areEquivalent).call();
+
+  /// A Function  that returns a flow where all subsequent repetitions of the same value are filtered out.
+  /// ```dart
+  ///  flow<DummyClass>((collector) {
+  ///    collector.emit(DummyClass(foo: 21));
+  ///    collector.emit(DummyClass(foo: 25));
+  ///    collector.emit(DummyClass(foo: 22));
+  ///    collector.emit(DummyClass(foo: 22));
+  ///  })
+  ///  .distinctUntilChangedBy(
+  ///   (value) => value.foo,
+  ///  )
+  ///  .collect((value) => print(value.foo));
+  /// ```
+  /// Output: 21,25,22
+  Flow<T> distinctUntilChangedBy<K>(K Function(T value) keySelector) =>
+      Distinct(upstreamFlow: this, keySelector: keySelector).call();
 
   /// Creates a new flow that executes the provided action ([action]) only
   /// if the original flow emits no events (i.e., is empty).
