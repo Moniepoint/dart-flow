@@ -58,7 +58,24 @@ extension FlowX<T> on Flow<T> {
     await collect((value) async => await action(value).collect(collector.emit));
   });
 
-  /// TODO document
+  /// Filters elements emitted by the flow based on a provided predicate function.
+  ///
+  /// This function allows you to selectively emit elements from the flow.
+  /// The provided `action` function takes a single argument, the current
+  /// value (`T`) emitted by the flow. It should return a `FutureOr<bool>`. If
+  /// the `action` function returns `true`, the value is emitted by the resulting
+  /// flow. Otherwise, the value is discarded.
+  ///
+  /// Example:
+  /// ```dart
+  ///   flow([1, 2, 3, 4]).filter((value) => value % 2 == 0)
+  ///     .collect(print); // This will print only even numbers (2, 4)
+  /// ```
+  ///
+  /// [action]: A function that takes a value of type `T` emitted by the flow
+  /// as an argument. It should return a `FutureOr<bool>`. If the function
+  /// returns `true`, the value is emitted by the resulting flow. Otherwise,
+  /// the value is discarded.
   Flow<T> filter(FutureOr<bool> Function(T value) action) => flow((collector) async {
     await collect((value) async {
       if (await action(value)) collector.emit(value);
