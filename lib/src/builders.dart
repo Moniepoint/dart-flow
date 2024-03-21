@@ -30,7 +30,7 @@ import 'flowimpl.dart';
 ///
 /// [action] : A function that takes a `FlowCollector<T>` as an argument and
 /// is responsible for emitting values of type `T` into the flow.
-Flow<T> flow<T>(FutureOr<void> Function(FlowCollector<T>) action) =>
+Flow<T> flow<T>(FutureOr<void> Function(FlowCollector<T> collector) action) =>
     SafeFlow(action);
 
 /// Creates a Flow from an iterable collection of elements.

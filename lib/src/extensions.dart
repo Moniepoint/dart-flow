@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flow/src/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
+import 'package:flow/src/retries.dart';
 
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
@@ -283,6 +284,20 @@ extension FlowX<T> on Flow<T> {
         }
       }
       await internalRetry();
+    });
+  }
+
+  Flow<T> retryWith(RetryPolicy Function(Exception cause) action) {
+    RetryPolicy? retryPolicy;
+    Exception? previousException;
+    return this.retryWhen((cause, attempts) async {
+      if (null != retryPolicy && previousException.isIdenticalWith(cause)) {
+        return await retryPolicy?.retry(attempts) ?? false;
+      } else {
+        retryPolicy = action(cause);
+        previousException = cause;
+        return await retryPolicy?.retry(attempts) ?? false;
+      }
     });
   }
 

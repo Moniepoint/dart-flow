@@ -30,4 +30,10 @@ extension ErrorX on Object? {
     }
     return FlowException(this);
   }
+
+  bool isIdenticalWith(Exception exception) {
+    return this == exception ||
+        (runtimeType == exception.runtimeType &&
+            toString() == exception.toString());
+  }
 }
