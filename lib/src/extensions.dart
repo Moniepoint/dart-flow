@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flow/src/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
 import 'package:flow/src/retries.dart';
+import 'package:flow/src/operators/distinct.dart';
 
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
@@ -168,6 +169,44 @@ extension FlowX<T> on Flow<T> {
     });
   });
 
+  /// A Function that returns a flow where all subsequent repetitions of the
+  /// same value are filtered out.
+  /// ```dart
+  /// flow<DummyClass>((collector) {
+  ///   collector.emit(DummyClass(foo: 1));
+  ///   collector.emit(DummyClass(foo: 2));
+  ///   collector.emit(DummyClass(foo: 3));
+  ///   collector.emit(DummyClass(foo: 2));
+  ///   collector.emit(DummyClass(foo: 4));
+  /// })
+  /// .distinctUntilChanged(
+  ///   keySelector: (value) => value.foo,
+  ///   areEquivalent: (previousKey, nextKey) => (previousKey ?? 0) > nextKey!,
+  /// )
+  /// .collect((value) => print(value.foo));
+  /// ```
+  /// Output: 1,2,3,4
+  Flow<T> distinctUntilChanged({bool Function(T? previousKey, T? nextKey)? areEquivalent}) =>
+      Distinct(upstreamFlow: this, equivalenceMethod: areEquivalent).call();
+
+  /// A Function  that returns a flow where all subsequent repetitions of the
+  /// same value are filtered out.
+  /// ```dart
+  ///  flow<DummyClass>((collector) {
+  ///    collector.emit(DummyClass(foo: 21));
+  ///    collector.emit(DummyClass(foo: 25));
+  ///    collector.emit(DummyClass(foo: 22));
+  ///    collector.emit(DummyClass(foo: 22));
+  ///  })
+  ///  .distinctUntilChangedBy(
+  ///   (value) => value.foo,
+  ///  )
+  ///  .collect((value) => print(value.foo));
+  /// ```
+  /// Output: 21,25,22
+  Flow<T> distinctUntilChangedBy<K>(K Function(T value) keySelector) =>
+      Distinct(upstreamFlow: this, keySelector: keySelector).call();
+
   /// Creates a new flow that executes the provided action ([action]) only
   /// if the original flow emits no events (i.e., is empty).
   ///
@@ -287,6 +326,31 @@ extension FlowX<T> on Flow<T> {
     });
   }
 
+  /// Implements retry logic based on a provided [RetryPolicy].
+  ///
+  /// This approach offers more flexibility by allowing you to define a custom
+  /// retry policy class that encapsulates various retry strategies. The
+  /// provided `action` function takes the encountered exception as an argument
+  /// and should return a concrete implementation of the `RetryPolicy` interface.
+  /// This policy object then dictates the retry behavior based on factors like
+  /// the number of attempts, elapsed time, or specific error types.
+  ///
+  /// Example:
+  /// ```dart
+  ///   class ExponentialRetryPolicy implements RetryPolicy {
+  ///     // ... implementation details
+  ///   }
+  ///
+  ///   flow((collector) {
+  ///     collector.emit('A');
+  ///     throw Exception('Something went wrong');
+  ///   }).retryWith((cause) => ExponentialRetryPolicy())
+  ///     .collect(print);
+  /// ```
+  ///
+  /// [action] : A function that takes an `Exception` as an argument. It
+  /// should return a concrete implementation of the `RetryPolicy` interface,
+  /// defining the retry strategy for the flow in case of errors.
   Flow<T> retryWith(RetryPolicy Function(Exception cause) action) {
     RetryPolicy? retryPolicy;
     Exception? previousException;
