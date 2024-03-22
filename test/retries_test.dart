@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flow/flow.dart';
 import 'package:flow/src/retries.dart';
@@ -70,6 +71,69 @@ main() {
         //resetTimeOut + coolDownTime(start or end)
         inInclusiveRange(700, 900)
       ])));
+    });
+  });
+
+  group('FixedIntervalRetryPolicy Tests', () {
+    test('Retry respects fixed delay', () async {
+      const maxAttempts = 5;
+      const delay = 3000;
+      final policy = RetryPolicy.fixedInterval(delay: delay, maxAttempts: maxAttempts); // Using shorter delays for tests
+      final stopwatch = Stopwatch()..start();
+
+      // Perform a retry, which should wait for the specified delay.
+      await policy.retry(1);
+      stopwatch.stop();
+
+      // Check that the elapsed time is at least the specified delay.
+      // In a real test, you might mock the delay or abstract time to avoid waiting.
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(delay));
+    });
+
+    test('Max attempts limit is respected', () async {
+      const maxAttempts = 3;
+      final policy = RetryPolicy.fixedInterval(maxAttempts: maxAttempts);
+      int attempts = 0;
+      bool shouldRetry = true;
+
+      while (shouldRetry) {
+        attempts++;
+        shouldRetry = await policy.retry(attempts);
+      }
+
+      // Verify the number of attempts does not exceed maxAttempts.
+      expect(attempts, equals(maxAttempts));
+    });
+  });
+
+  group('DecorrelatedJitterRetryPolicy Tests', () {
+    test('Initial retry delay is baseDelay', () async {
+
+      const baseDelay = 2000;
+
+      final policy = RetryPolicy.decorrelatedJitter(baseDelay: baseDelay);
+      final stopwatch = Stopwatch()..start();
+
+      // Assuming the first retry always happens (attempts = 1).
+      await policy.retry(1);
+      stopwatch.stop();
+
+      // The first delay should be at least baseDelay.
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(baseDelay));
+    });
+
+    test('Max attempts limit is respected', () async {
+      const maxAttempts = 3;
+      final policy = RetryPolicy.decorrelatedJitter(maxAttempts: maxAttempts);
+      bool shouldRetry = true;
+      int attempts = 0;
+
+      while (shouldRetry) {
+        attempts++;
+        shouldRetry = await policy.retry(attempts);
+      }
+
+      expect(attempts, equals(maxAttempts));
     });
   });
 }
