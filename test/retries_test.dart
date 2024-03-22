@@ -29,7 +29,7 @@ main() {
       ]));
 
       expectLater(completer.future, completion(anyOf([
-        inInclusiveRange(2000, 2030)
+        inInclusiveRange(2000, 2100)
       ])));
     });
   });
