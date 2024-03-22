@@ -29,6 +29,21 @@ abstract class RetryPolicy {
       ({int start, int end}) coolDownTime}) = _CircuitBreakerRetryPolicy;
 
   factory RetryPolicy.noRetry() = _NoRetryPolicy;
+
+  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  factory RetryPolicy.fixedInterval({
+    int delay,
+    int maxAttempts,
+  }) = _FixedIntervalRetryPolicy;
+
+  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  factory RetryPolicy.decorrelatedJitter({
+    int baseDelay,
+    int maxAttempts,
+    int multiplier,
+    int maxDelay,
+    double jitterFactor,
+  }) = _DecorrelatedJitterRetryPolicy;
 }
 
 final class _NoRetryPolicy implements RetryPolicy {
@@ -148,5 +163,67 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
         }
         return true;
     }
+  }
+}
+
+/// Implements a fixed interval retry policy
+final class _FixedIntervalRetryPolicy implements RetryPolicy {
+
+  /// The delay between retries in milliseconds (default: 2000).
+  final int delay;
+
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
+  _FixedIntervalRetryPolicy({
+    this.delay = 2000,
+    this.maxAttempts = 20,
+  });
+
+  @override
+  FutureOr<bool> retry<T>(int attempts) async {
+    await Future.delayed(Duration(milliseconds: delay));
+    return attempts < maxAttempts;
+  }
+}
+
+/// Implements a retry strategy with decorrelated jitter.
+final class _DecorrelatedJitterRetryPolicy implements RetryPolicy {
+  /// The initial delay between retries in milliseconds (default: 2000).
+  final int baseDelay;
+
+  /// The factor by which the delay is multiplied after each attempt
+  /// (default: 2).
+  final int multiplier;
+
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
+  /// The maximum allowed delay between retries in milliseconds
+  /// (default: 400000).
+  final int maxDelay;
+
+  /// A value between 0 and 1 that determines the range of the random jitter.
+  final double jitterFactor;
+
+  _DecorrelatedJitterRetryPolicy({
+    this.baseDelay = 2000,
+    this.maxAttempts = 20,
+    this.multiplier = 2,
+    this.maxDelay = 400000,
+    this.jitterFactor = 0.5,
+  });
+
+  @override
+  FutureOr<bool> retry<T>(int attempts) async {
+    int delay = baseDelay * (multiplier ^ (attempts - 1));
+
+    final jitterAmount = (Random().nextDouble() * delay * jitterFactor).toInt();
+
+    delay = (delay + jitterAmount).clamp(0, maxDelay);
+
+    await Future.delayed(Duration(milliseconds: delay));
+
+    return attempts < maxAttempts;
   }
 }
