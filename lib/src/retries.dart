@@ -12,7 +12,7 @@ abstract class RetryPolicy {
   /// - Returning `true` indicates a retry should be attempted.
   /// - Returning `false` or completing the future with a `false` value signals
   /// the end of retries.
-  FutureOr<bool> retry<T>(int attempts);
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed);
 
   /// Factory constructor that creates an instance of a RetryPolicy that
   /// implements an exponential backoff retry logic.
@@ -31,10 +31,10 @@ abstract class RetryPolicy {
   factory RetryPolicy.noRetry() = _NoRetryPolicy;
 
   /// Factory constructor that create an instance of a Fixed Interval retry policy
-  factory RetryPolicy.fixedInterval({
-    int delay,
-    int maxAttempts,
-  }) = _FixedIntervalRetryPolicy;
+  factory RetryPolicy.fixedInterval(
+      {int delay,
+      int maxAttempts,
+      int maxDuration}) = _FixedIntervalRetryPolicy;
 
   /// Factory constructor that create an instance of a Fixed Interval retry policy
   factory RetryPolicy.decorrelatedJitter({
@@ -48,7 +48,7 @@ abstract class RetryPolicy {
 
 final class _NoRetryPolicy implements RetryPolicy {
   @override
-  FutureOr<bool> retry<T>(int attempts) => false;
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed) => false;
 }
 
 /// Concrete class that implements a retry strategy with exponential backoff.
@@ -75,7 +75,7 @@ final class _ExponentialBackOff implements RetryPolicy {
   });
 
   @override
-  FutureOr<bool> retry<T>(int attempts) async {
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed) async {
     int delay = baseDelay * (multiplier ^ (attempts - 1));
 
     delay = delay.clamp(0, maxDelay);
@@ -131,7 +131,7 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
   });
 
   @override
-  FutureOr<bool> retry<T>(int attempts) async {
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed) async {
     return await _transitionState(attempts);
   }
 
@@ -175,15 +175,20 @@ final class _FixedIntervalRetryPolicy implements RetryPolicy {
   /// The maximum number of retry attempts (default: 20).
   final int maxAttempts;
 
+  /// The maximum duration in milliseconds till the retries are stopped
+  final int? maxDuration;
+
   _FixedIntervalRetryPolicy({
     this.delay = 2000,
     this.maxAttempts = 20,
+    this.maxDuration,
   });
 
   @override
-  FutureOr<bool> retry<T>(int attempts) async {
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed) async {
     await Future.delayed(Duration(milliseconds: delay));
-    return attempts < maxAttempts;
+    return maxDuration == null ? 
+      (attempts < maxAttempts) : (attempts < maxAttempts && timeElapsed < maxDuration!);
   }
 }
 
@@ -215,7 +220,7 @@ final class _DecorrelatedJitterRetryPolicy implements RetryPolicy {
   });
 
   @override
-  FutureOr<bool> retry<T>(int attempts) async {
+  FutureOr<bool> retry<T>(int attempts, int timeElapsed) async {
     int delay = baseDelay * (multiplier ^ (attempts - 1));
 
     final jitterAmount = (Random().nextDouble() * delay * jitterFactor).toInt();
