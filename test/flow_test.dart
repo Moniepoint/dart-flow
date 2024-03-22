@@ -71,7 +71,7 @@ void main() {
       collector.emit("B");
       collector.emit("C");
       throw Exception('Loveliness');
-    }).retryWhen((cause, attempts) async {
+    }).retryWhen((cause, attempts, timeElapsed) async {
       if (attempts < 2) {
         return true;
       }
@@ -84,6 +84,27 @@ void main() {
     ]));
   });
 
+  test('Test that retryWhen returns the correct time elapsed', () async {
+    int elapstedTime = 0;
+    final fl = flow<String>((collector) async {
+      collector.emit("A");
+      collector.emit(
+          await Future.delayed(const Duration(milliseconds: 600), () => "B"));
+      throw Exception('Loveliness');
+    }).retryWhen((cause, attempts, timeElapsed) async {
+      if (attempts < 5) {
+        elapstedTime = timeElapsed;
+        return true;
+      }
+      return false;
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'A', 'B', 'A', 'B', 'A', 'B',
+    ]));
+    await Future.delayed(const Duration(seconds: 4));
+    expect(elapstedTime, 3000);
+  });
 
   test('Test that onStart is called before the flow block is triggered', () async {
 

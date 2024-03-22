@@ -82,7 +82,7 @@ main() {
       final stopwatch = Stopwatch()..start();
 
       // Perform a retry, which should wait for the specified delay.
-      await policy.retry(1);
+      await policy.retry(1, 0);
       stopwatch.stop();
 
       // Check that the elapsed time is at least the specified delay.
@@ -98,11 +98,28 @@ main() {
 
       while (shouldRetry) {
         attempts++;
-        shouldRetry = await policy.retry(attempts);
+        shouldRetry = await policy.retry(attempts, 0);
       }
 
       // Verify the number of attempts does not exceed maxAttempts.
       expect(attempts, equals(maxAttempts));
+    });
+
+    test('Max duration limit is respected', () async {
+      const maxDuration = 5000; /// 5 seconds
+
+      final fl = flow((collector) async {
+        collector.emit('A');
+        collector.emit(await Future.delayed(const Duration(seconds: 2), () => 'B'));
+        throw Exception('retry');
+      })
+      .retryWith((cause) {
+        return RetryPolicy.fixedInterval(maxDuration: maxDuration);
+      });
+
+      expect(fl.asStream(), emitsInOrder([
+        'A', 'B', 'A', 'B'
+      ]));
     });
   });
 
@@ -115,7 +132,7 @@ main() {
       final stopwatch = Stopwatch()..start();
 
       // Assuming the first retry always happens (attempts = 1).
-      await policy.retry(1);
+      await policy.retry(1, 0);
       stopwatch.stop();
 
       // The first delay should be at least baseDelay.
@@ -130,7 +147,7 @@ main() {
 
       while (shouldRetry) {
         attempts++;
-        shouldRetry = await policy.retry(attempts);
+        shouldRetry = await policy.retry(attempts, 0);
       }
 
       expect(attempts, equals(maxAttempts));
