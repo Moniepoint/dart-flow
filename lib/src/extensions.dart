@@ -305,7 +305,7 @@ extension FlowX<T> on Flow<T> {
   ///
   /// This function allows you to define a retry strategy for handling
   /// errors within the flow. The provided `action` function takes the
-  /// exception and the current attempt number as arguments. It should
+  /// exception, the time elapsed and the current attempt number as arguments. It should
   /// return `true` if the flow should be retried and `false` otherwise.
   ///
   /// Example:
@@ -313,8 +313,8 @@ extension FlowX<T> on Flow<T> {
   ///   flow((collector) {
   ///     collector.emit('A');
   ///     throw Exception('502');
-  ///   }).retryWhen((cause, attempts) {
-  ///     if (cause.toString().contains('502') && attempts < 2) {
+  ///   }).retryWhen((cause, attempts, timeElapsed) {
+  ///     if (cause.toString().contains('502') && attempts < 2 && timeElapsed < 120000) {
   ///       return true;
   ///     }
   ///     return false;
@@ -324,21 +324,28 @@ extension FlowX<T> on Flow<T> {
   /// [action] : A function that takes an `Exception` and an `int` (the
   /// current attempt number) as arguments. It determines whether to retry
   /// the flow based on the value returned(true|false) by [action]
-  Flow<T> retryWhen(FutureOr<bool> Function(Exception, int) action) {
+  Flow<T> retryWhen(FutureOr<bool> Function(Exception, int, int) action) {
     return flow((collector) async {
       int attempts = 0;
+      int timeElapsed = 0;
+      Timer? timer;
       FutureOr<void> internalRetry() async {
         try {
           await collect(collector.emit);
         } catch (e) {
-          if (await action(e.toException(), attempts)) {
+          if (await action(e.toException(), attempts, timeElapsed)) {
             attempts++;
             await internalRetry();
           } else {
+            timer?.cancel();
             rethrow;
           }
         }
       }
+
+      timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+        timeElapsed += 50;
+      });
       await internalRetry();
     });
   }
@@ -371,13 +378,13 @@ extension FlowX<T> on Flow<T> {
   Flow<T> retryWith(RetryPolicy Function(Exception cause) action) {
     RetryPolicy? retryPolicy;
     Exception? previousException;
-    return this.retryWhen((cause, attempts) async {
+    return this.retryWhen((cause, attempts, timeElapsed) async {
       if (null != retryPolicy && previousException.isIdenticalWith(cause)) {
-        return await retryPolicy?.retry(attempts) ?? false;
+        return await retryPolicy?.retry(attempts, timeElapsed) ?? false;
       } else {
         retryPolicy = action(cause);
         previousException = cause;
-        return await retryPolicy?.retry(attempts) ?? false;
+        return await retryPolicy?.retry(attempts, timeElapsed) ?? false;
       }
     });
   }
