@@ -1,0 +1,46 @@
+name: Test dart-flow
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Setup dart
+        uses: dart-lang/setup-dart@v1
+      - name: Install dependencies
+        run: |
+          flutter clean
+          flutter pub get
+          flutter pub global activate junitreport
+      - name: Run test
+        run: | 
+          flutter test --machine --coverage | tojunit -o report.xml
+      - name: Create Archive
+        run: git archive --format=tar.gz --output=repository.tar.gz HEAD
+      - name: Upload Repository Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-archive
+          path: repository.tar.gz
+          retention-days: 7
+      - name: Upload Code Coverage Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-result
+          path: |
+            coverage
+            report.xml
+          retention-days: 7
+

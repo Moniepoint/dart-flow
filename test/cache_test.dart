@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flow/src/exceptions/flow_exception.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flow/flow.dart';
 
