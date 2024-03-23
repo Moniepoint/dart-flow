@@ -1,4 +1,4 @@
-**## Flow API**
+## Flow API
 
 - **Type**: Design Proposal
 - **Authors**: Paul Okeke
