@@ -47,7 +47,7 @@ flowOf([1, 2, 3, 4])
 
 ## Flow Operators
 
-## map<U>{#map}
+## map<U>
 Applies a transformation function to each element in the flow, resulting in a flow with elements of type `U`.
 
 ```dart
@@ -58,7 +58,7 @@ final flow = flowOf([1,2,3,4])
 ```
 
 
-## flatMap{#flatmap}
+## flatMap
 Applies a transformation function and flattens the resulting streams.
 
 This function is similar to `map` but allows transforming each element in the flow into a new flow. The resulting flows are then flattened into a single stream of values.
@@ -71,7 +71,7 @@ flowOf([1, 2, 3])
 // 4 -> 5 -> 6
 ```
 
-## asStream{#asStream}
+## asStream
 Converts this flow into a `Stream<T>`.
 
 This allows you to use `Stream`-based operators and functionalities on your flow.
@@ -81,7 +81,7 @@ This allows you to use `Stream`-based operators and functionalities on your flow
  ```
 
 
-## filter{#filter}
+## filter
 Filters elements emitted by the flow based on a provided predicate function.
 
 This function allows you to selectively emit elements from the flow. The provided `action` function takes a single argument, the current  value (`T`) emitted by the flow. 
