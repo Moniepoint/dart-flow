@@ -8,9 +8,9 @@ The Flow API provides functionalities for building asynchronous data processing 
 
 * [map<U>](#map) Applies a transformation function to each element in the flow, resulting in a flow with elements of type `U`.
 * [flatMap](#flatmap) Applies a transformation function to each element in the flow, potentially creating new flows. The resulting flows are then flattened into a single stream of values.
-* [asStream] (#asStream) Converts this flow into a `Stream<T>`.
-* [filter] (#filter)  Handles errors that occur within the flow.
-* [catchError] (#catchError)  Handles errors that occur within the flow.
+* [asStream](#asStream) Converts this flow into a `Stream<T>`.
+* [filter](#filter)  Handles errors that occur within the flow.
+* [catchError](#catchError)  Handles errors that occur within the flow.
 * [onStart](#onstart) Executes an action before the flow starts collecting data.
 * [onCompletion](#onCompletion) Executes an action upon flow completion (**needs improvement**).
 * [retryWhen] (#retryWhen) Implements retry logic based on a provided function to handle temporary errors.
@@ -91,9 +91,6 @@ It should return a `FutureOr<bool>`. If the `action` function returns `true`, th
      flowOf([1, 2, 3, 4]).filter((value) => value % 2 == 0)
       .collect(print); // This will print only even numbers (2, 4)
   ```
-
-
-
 
 
 **Benefits:**
