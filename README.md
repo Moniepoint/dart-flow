@@ -4,7 +4,7 @@ The Flow API provides functionalities for building asynchronous data processing 
 
 **Key Features:**
 
-* **Flow Operators:** Extension methods for the `Flow<T>` class, offering functionalities like:
+**Flow Operators:** Extension methods for the `Flow<T>` class, offering functionalities like:
 
 * [map<U>](#map) Applies a transformation function to each element in the flow, resulting in a flow with elements of type `U`.
 * [flatMap](#flatmap) Applies a transformation function to each element in the flow, potentially creating new flows. The resulting flows are then flattened into a single stream of values.
@@ -13,7 +13,7 @@ The Flow API provides functionalities for building asynchronous data processing 
 * [catchError](#catchError)  Handles errors that occur within the flow.
 * [onStart](#onstart) Executes an action before the flow starts collecting data.
 * [onCompletion](#onCompletion) Executes an action upon flow completion (**needs improvement**).
-* [retryWhen] (#retryWhen) Implements retry logic based on a provided function to handle temporary errors.
+* [retryWhen](#retryWhen) Implements retry logic based on a provided function to handle temporary errors.
 
 **Getting Started:**
 
@@ -47,7 +47,7 @@ flowOf([1, 2, 3, 4])
 
 ## Flow Operators
 
-## map<U> {#map}
+## map<U>{#map}
 Applies a transformation function to each element in the flow, resulting in a flow with elements of type `U`.
 
 ```dart
@@ -58,7 +58,7 @@ final flow = flowOf([1,2,3,4])
 ```
 
 
-## flatMap {#flatmap}
+## flatMap{#flatmap}
 Applies a transformation function and flattens the resulting streams.
 
 This function is similar to `map` but allows transforming each element in the flow into a new flow. The resulting flows are then flattened into a single stream of values.
@@ -71,7 +71,7 @@ flowOf([1, 2, 3])
 // 4 -> 5 -> 6
 ```
 
-## asStream {#asStream}
+## asStream{#asStream}
 Converts this flow into a `Stream<T>`.
 
 This allows you to use `Stream`-based operators and functionalities on your flow.
@@ -81,7 +81,7 @@ This allows you to use `Stream`-based operators and functionalities on your flow
  ```
 
 
-## filter {#filter}
+## filter{#filter}
 Filters elements emitted by the flow based on a provided predicate function.
 
 This function allows you to selectively emit elements from the flow. The provided `action` function takes a single argument, the current  value (`T`) emitted by the flow. 
