@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:flow/src/cache.dart';
+import 'package:flow/src/operators/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
+import 'package:flow/src/operators/timeout.dart';
 import 'package:flow/src/retries.dart';
 import 'package:flow/src/operators/distinct.dart';
 
@@ -300,6 +301,56 @@ extension FlowX<T> on Flow<T> {
       }
     });
   }
+
+  /// Extends a flow with a timeout mechanism.
+  ///
+  /// This function creates a new `Timeout` flow that wraps the provided
+  /// `upstreamFlow`.
+  /// If the upstream flow execution doesn't complete within the specified
+  /// `duration`, a `TimeoutCancellationException` will be thrown.
+  ///
+  /// Example:
+  /// ```dart
+  /// flow((collector) async {
+  ///   await Future.delayed(const Duration(seconds: 5));
+  ///   collector.emit('A');
+  /// })
+  /// .timeout(const Duration(seconds: 3))
+  /// .collect(print);
+  ///
+  /// // Output:
+  /// //  throws a TimeoutCancellationException
+  ///
+  /// flow((collector) async {
+  ///   collector.emit('A');
+  ///   await Future.delayed(const Duration(milliseconds: 100));
+  ///   collector.emit('B');
+  ///   await Future.delayed(const Duration(milliseconds: 100));
+  ///   collector.emit('C');
+  ///   await Future.delayed(const Duration(milliseconds: 1000));
+  ///   collector.emit('D');
+  /// })
+  /// .timeout(const Duration(milliseconds: 99))
+  /// .catchError((cause, collector) {
+  ///   if (cause is TimeoutCancellationException) {
+  ///     collector.emit('Z');
+  ///   } else {
+  ///     throw cause;
+  ///   }
+  /// })
+  /// .onEach(() {
+  ///   await Future.delayed(const Duration(milliseconds: 300)); // this doesn't matter
+  /// });
+  ///
+  /// //Output:
+  /// // A, B, C, Z
+  /// ```
+  ///
+  /// [duration] : The maximum allowed execution time for the upstream flow.
+  ///
+  /// Returns:
+  ///   * A new `Flow<T>` object that incorporates the timeout functionality.
+  Flow<T> timeout(Duration duration) => Timeout(this, duration);
 
   /// Implements retry logic based on a provided function.
   ///
