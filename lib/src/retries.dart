@@ -30,13 +30,15 @@ abstract class RetryPolicy {
 
   factory RetryPolicy.noRetry() = _NoRetryPolicy;
 
-  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  /// Factory constructor that create an instance of a Fixed Interval retry
+  /// policy
   factory RetryPolicy.fixedInterval({
     int delay,
     int maxAttempts,
   }) = _FixedIntervalRetryPolicy;
 
-  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  /// Factory constructor that create an instance of a Decorrelated Jitter retry
+  /// policy
   factory RetryPolicy.decorrelatedJitter({
     int baseDelay,
     int maxAttempts,

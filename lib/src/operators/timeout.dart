@@ -6,9 +6,9 @@ import 'package:flow/flow.dart';
 /// upstream flow.
 ///
 /// The [Timeout] class is used to ensure that the collection process of an
-/// upstream flow
-/// completes within a specified duration. If the collection process exceeds the
-/// duration, the [Timeout] class completes with a timeout error.
+/// upstream flow completes within a specified duration. If the collection
+/// process exceeds the duration, the [Timeout] class completes with a timeout
+/// error.
 ///
 /// Usage:
 /// ```dart

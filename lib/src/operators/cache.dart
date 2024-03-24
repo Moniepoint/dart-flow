@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flow/flow.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
-import 'collectors/flow_collector.dart';
+import '../collectors/flow_collector.dart';
 
 /// An abstract interface representing a Flow that supports caching.
 abstract class CacheFlow<T> implements Flow<T> {
