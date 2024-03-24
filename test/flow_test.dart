@@ -160,5 +160,21 @@ void main() {
       'NotEmpty', emitsDone
     ]));
   });
+
+  test('Test that .filterNotNull filters out null from emitted values', () async {
+    final fl = flow<String?>((collector) {
+      collector.emit("A");
+      collector.emit("B");
+      collector.emit("C");
+      collector.emit(null);
+      collector.emit(null);
+      collector.emit('D');
+    })
+    .filterNotNull();
+
+    expect(fl.asStream(), emitsInOrder([
+      'A', 'B', 'C', 'D'
+    ]));
+  });
 }
 
