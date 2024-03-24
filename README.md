@@ -16,6 +16,10 @@ The Flow API provides functionalities for building asynchronous data processing 
 * [onCompletion](#onCompletion) Executes an action upon flow completion (**needs improvement**).
 * [retryWhen](#retryWhen) Implements retry logic based on a provided function to handle temporary errors.
 * [retryWith](#retryWith) Implements retry logic based on a provided [RetryPolicy].
+* [onEach](#onEach) Returns a flow that invokes the given [action] before each value of theupstream flow is emitted downstream.
+* [onEmpty](#onEmpty) Creates a new flow that executes the provided action ([action]) only if the original flow emits no events (i.e., is empty).
+* [distinctUntilChanged](#distinctUntilChanged)A Function that returns a flow where all subsequent repetitions of the same value are filtered out
+
 
 
 **Getting Started:**
@@ -181,6 +185,107 @@ This function allows you to perform actions or cleanup tasks after the flow has 
   ```
 
 [action] : A function that takes an optional `Exception` and a  `FlowCollector<T>` as arguments. It can be used for post-processing, cleanup, or handling any errors that might occur during completion.
+
+## onStart
+Executes an action before the flow starts collecting data.
+
+This function allows you to perform setup tasks or initializations before the actual flow processing begins. The provided `action` function receives the `FlowCollector` as an argument.
+
+ ```dart
+   flow((collector) => collector.emit('World!'))
+     .onStart((collector) => collector.emit('Hello,'));
+     .collect(stdout.write)
+
+   // Outputs:
+   // Hello, World!
+ ```
+
+[action] : A function that takes a `FlowCollector<T>` as an argument. It can be used for pre-processing or any actions needed before collecting data in the flow.
+
+## onEach
+Returns a flow that invokes the given [action] before each value of theupstream flow is emitted downstream.
+  
+This function allows you to perform actions on each individual value that flows through the pipeline, potentially performing side effects before the value is sent further downstream.
+  
+   ```dart
+    flow((collector) => collector.emit(1, 2, 3))
+      .onEach((value) => print('Emitting value: $value'))
+      .collect(print);
+  
+    // Output:
+    // Emitting value: 1
+    // 1
+    // Emitting value: 2
+    // 2
+    // Emitting value: 3
+    // 3
+   ```
+
+[action] : A function that takes a value of type `T` and potentially performs asynchronous operations. This function is called for each value emitted by the source Flow.
+
+## onEmpty
+Creates a new flow that executes the provided action ([action]) only if the original flow emits no events (i.e., is empty).
+
+This function is useful for scenarios where you want to perform specific logic when a flow is empty. For example, you might want to emit a default value, fetch data from another source, or trigger some side effect when no data is available in the original flow.
+
+
+```dart
+ Flow<int> numbers = Flow.from([1, 2, 3]);
+
+ // This action will NOT be executed because the original flow is not empty
+ Flow<int> withEmptyHandling = numbers
+   .onEmpty((collector) => collector.emit(0));
+
+ withEmptyHandling.collect(print); // Output: 1, 2, 3
+
+ Flow<String> emptyStringFlow = Flow.empty();
+
+ // This action WILL be executed because the original flow is empty
+ Flow<String> withEmptyAction = emptyStringFlow
+   .onEmpty((collector) => collector.emit("No data available"));
+
+ withEmptyAction.collect(print); // Output: No data available
+ ```
+[action] : A function that accepts a `FlowCollector<T>` as its parameter. The provided action will be executed only if the original flow doesn't emit any values. Otherwise, the original flow's events are simply forwarded downstream without any modification.
+
+
+## distinctUntilChanged
+A Function that returns a flow where all subsequent repetitions of the same value are filtered out.
+   
+   ```dart
+   flow<DummyClass>((collector) {
+     collector.emit(DummyClass(foo: 1));
+     collector.emit(DummyClass(foo: 2));
+     collector.emit(DummyClass(foo: 3));
+     collector.emit(DummyClass(foo: 2));
+     collector.emit(DummyClass(foo: 4));
+   })
+   .distinctUntilChanged(
+     keySelector: (value) => value.foo,
+     areEquivalent: (previousKey, nextKey) => (previousKey ?? 0) > nextKey!,
+   )
+   .collect((value) => print(value.foo));
+  // Output: 1,2,3,4
+   ```
+
+## distinctUntilChanged
+A Function  that returns a flow where all subsequent repetitions of the same value are filtered out.
+
+
+```dart
+ flow<DummyClass>((collector) {
+   collector.emit(DummyClass(foo: 21));
+   collector.emit(DummyClass(foo: 25));
+   collector.emit(DummyClass(foo: 22));
+   collector.emit(DummyClass(foo: 22));
+ })
+ .distinctUntilChangedBy(
+  (value) => value.foo,
+ )
+ .collect((value) => print(value.foo));
+ ///Output: 21,25,22
+
+```
 
 
 **Benefits:**
