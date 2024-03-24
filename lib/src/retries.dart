@@ -137,7 +137,12 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
 
   @override
   FutureOr<bool> retry<T>(int attempts) async {
-    return (await _transitionState(attempts) && attempts < maxAttempts);
+    if (attempts >= maxAttempts) {
+      state = _CircuitState.closed;
+      halfOpenAttempts = 0;
+      return false;
+    }
+    return await _transitionState(attempts);
   }
 
   Future<bool> _transitionState(int attempts) async {
