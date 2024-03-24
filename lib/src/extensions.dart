@@ -81,6 +81,15 @@ extension FlowX<T> on Flow<T> {
       if (await action(value)) collector.emit(value);
     });
   });
+ 
+  /// Filters out null from emitted values
+  ///
+  /// Example:
+  /// ```dart
+  ///   flow([1, 2, 3, null, 4, null]).filterNotNull()
+  ///     .collect(print); // This will print only even numbers (1, 2, 3, 4)
+  /// ```
+  Flow<T> filterNotNull() => filter((value) => value != null);
 
   /// Handles errors that occur within the flow.
   ///
@@ -432,15 +441,7 @@ extension FlowX<T> on Flow<T> {
       await strategy.handle(cacheFlow, this, collector);
     });
   }
-  
-  /// Filters out null from emitted values
-  ///
-  /// Example:
-  /// ```dart
-  ///   flow([1, 2, 3, null, 4, null]).filterNotNull()
-  ///     .collect(print); // This will print only even numbers (1, 2, 3, 4)
-  /// ```
-  Flow<T> filterNotNull() => filter((value) => value != null);
+
 }
 
 
