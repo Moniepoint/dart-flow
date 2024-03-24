@@ -10,10 +10,13 @@ The Flow API provides functionalities for building asynchronous data processing 
 * [flatMap](#flatmap) Applies a transformation function to each element in the flow, potentially creating new flows. The resulting flows are then flattened into a single stream of values.
 * [asStream](#asStream) Converts this flow into a `Stream<T>`.
 * [filter](#filter)  Filters elements emitted by the flow based on a provided predicate function.
+* [cache](#cache) Creates a new Flow that applies a caching strategy using the provided ```CacheFlow``` and ```CacheStrategy``` objects.
 * [catchError](#catchError)  Handles errors that occur within the flow.
 * [onStart](#onstart) Executes an action before the flow starts collecting data.
 * [onCompletion](#onCompletion) Executes an action upon flow completion (**needs improvement**).
 * [retryWhen](#retryWhen) Implements retry logic based on a provided function to handle temporary errors.
+* [retryWith](#retryWith) Implements retry logic based on a provided [RetryPolicy].
+
 
 **Getting Started:**
 
@@ -91,6 +94,93 @@ It should return a `FutureOr<bool>`. If the `action` function returns `true`, th
      flowOf([1, 2, 3, 4]).filter((value) => value % 2 == 0)
       .collect(print); // This will print only even numbers (2, 4)
   ```
+
+## cache
+Creates a new Flow that applies a caching strategy using the provided `CacheFlow` and `CacheStrategy`  objects.
+
+This function allows you to integrate caching logic into your data flows. It takes a `CacheFlow` object that defines the caching behavior (e.g., reading, writing from cache), a `CacheStrategy` object that determines the specific caching strategy to employ (e.g., `FetchOrElseCache`, `CacheThenFetch`), and a `FlowCollector` to emit data downstream.
+
+The provided `CacheStrategy` handles the interaction between the source Flow (`this` in the context of the function) and the `CacheFlow` toimplement the desired caching behavior.
+
+
+ ```dart
+  // Example CacheFlow implementation (simplified)
+   class InMemoryCache<T> implements CacheFlow<T> {
+    // ... cache implementation details
+  }
+ 
+  // Example CacheStrategy implementation (simplified)
+  class FetchOrElseCache<T> implements CacheStrategy<T> {
+    @override
+    FutureOr<void> handle(CacheFlow<T> cacheFlow, Flow<T> sourceFlow,
+              FlowCollector collector) async {
+      // ... implementation to fetch or read from cache
+    }
+  }
+
+  // Usage
+  flowOf([1, 2, 3])
+    .cache(InMemoryCache<int>(), FetchOrElseCache<int>())
+    .collect(print);
+  ```
+
+[cacheFlow] : An object implementing the `CacheFlow` interface that provides caching functionalities (read, write, etc.)
+
+[strategy] : An object implementing the `CacheStrategy` interface that defines the specific caching strategy to be used with the `CacheFlow`.
+  
+Returns: A new Flow that incorporates the caching logic defined by the provided `CacheStrategy` and `CacheFlow` objects.
+
+## retryWhen
+Implements retry logic based on a provided function.
+
+This function allows you to define a retry strategy for handling errors within the flow. The provided `action` function takes the exception and the current attempt number as arguments. It should return `true` if the flow should be retried and `false` otherwise.
+
+ ```dart
+   flow((collector) {
+     collector.emit('A');
+     throw Exception('502');
+   }).retryWhen((cause, attempts) {
+     if (cause.toString().contains('502') && attempts < 2) {
+       return true;
+     }
+     return false;
+   }).collect(print);
+ ```
+
+ [action] : A function that takes an `Exception` and an `int` (the current attempt number) as arguments. It determines whether to retry the flow based on the value returned(true|false) by [action]
+
+## retryWith
+Implements retry logic based on a provided [RetryPolicy].
+  
+This approach offers more flexibility by allowing you to define a custom retry policy class that encapsulates various retry strategies. The provided `action` function takes the encountered exception as an argument and should return a concrete implementation of the `RetryPolicy` interface. This policy object then dictates the retry behavior based on factors like the number of attempts, elapsed time, or specific error types.
+  
+
+   ```dart
+     class ExponentialRetryPolicy implements RetryPolicy {
+       // ... implementation details
+     }
+  
+     flow((collector) {
+       collector.emit('A');
+       throw Exception('Something went wrong');
+     }).retryWith((cause) => ExponentialRetryPolicy())
+       .collect(print);
+   ```
+  
+  [action] : A function that takes an `Exception` as an argument. It should return a concrete implementation of the `RetryPolicy` interface, defining the retry strategy for the flow in case of errors.
+
+## onCompletion
+Executes an action upon flow completion (needs improvement).
+
+This function allows you to perform actions or cleanup tasks after the flow has finished processing data. The provided `action` function receives an optional exception (`null` if no exception occurred) and the `FlowCollector` as arguments. **Note:** Currently, the handling of completion errors within the context of the flow needs improvement.
+
+  ```dart
+  flowOf([1, 2, 3]).onCompletion((exception, collector){
+        //Perform  action
+    });
+  ```
+
+[action] : A function that takes an optional `Exception` and a  `FlowCollector<T>` as arguments. It can be used for post-processing, cleanup, or handling any errors that might occur during completion.
 
 
 **Benefits:**
