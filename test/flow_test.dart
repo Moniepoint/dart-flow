@@ -176,5 +176,43 @@ void main() {
       'A', 'B', 'C', 'D'
     ]));
   });
+  
+  group('Timeout', () {
+    test('Test that when the timeout expires a TimeoutCancellationException is thrown', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 1000));
+        collector.emit('NotEmpty');
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        emitsError(isInstanceOf<TimeoutCancellationException>())
+      ]));
+    });
+
+    test('Test that if we emit values before a timeout it is emitted ', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 300));
+        collector.emit('EscapesTimeout-1');
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        'EscapesTimeout-1', emitsError(isInstanceOf<TimeoutCancellationException>())
+      ]));
+    });
+
+    test('Test that the timeout is restarted/reset for each emission', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 300));
+        collector.emit('EscapesTimeout-1');
+        await Future.delayed(const Duration(milliseconds: 350));
+        collector.emit('EscapesTimeout-2');
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        'EscapesTimeout-1', 'EscapesTimeout-2'
+      ]));
+    });
+  });
 }
 

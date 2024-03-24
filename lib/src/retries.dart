@@ -24,19 +24,22 @@ abstract class RetryPolicy {
 
   factory RetryPolicy.circuitBreaker(
       {int failureThreshold,
+      int maxAttempts,
       int resetTimeout,
       int halfOpenThreshold,
       ({int start, int end}) coolDownTime}) = _CircuitBreakerRetryPolicy;
 
   factory RetryPolicy.noRetry() = _NoRetryPolicy;
 
-  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  /// Factory constructor that create an instance of a Fixed Interval retry
+  /// policy
   factory RetryPolicy.fixedInterval({
     int delay,
     int maxAttempts,
   }) = _FixedIntervalRetryPolicy;
 
-  /// Factory constructor that create an instance of a Fixed Interval retry policy
+  /// Factory constructor that create an instance of a Decorrelated Jitter retry
+  /// policy
   factory RetryPolicy.decorrelatedJitter({
     int baseDelay,
     int maxAttempts,
@@ -106,6 +109,9 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
   /// open state (default: 4).
   final int failureThreshold;
 
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
   /// The time the circuit remains open before transitioning back to
   /// closed (milliseconds) (default: 10000).
   final int resetTimeout;
@@ -125,6 +131,7 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
 
   _CircuitBreakerRetryPolicy({
     this.failureThreshold = 4,
+    this.maxAttempts = 20,
     this.resetTimeout = 10000,
     this.halfOpenThreshold = 2,
     this.coolDownTime = const (start: 1000, end: 2000),
@@ -132,6 +139,11 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
 
   @override
   FutureOr<bool> retry<T>(int attempts) async {
+    if (attempts >= maxAttempts) {
+      state = _CircuitState.closed;
+      halfOpenAttempts = 0;
+      return false;
+    }
     return await _transitionState(attempts);
   }
 

@@ -72,6 +72,20 @@ main() {
         inInclusiveRange(700, 900)
       ])));
     });
+
+    test('Max attempts limit is respected', () async {
+      const maxAttempts = 5;
+      final policy = RetryPolicy.circuitBreaker(maxAttempts: maxAttempts);
+      bool shouldRetry = true;
+      int attempts = 0;
+
+      while (shouldRetry) {
+        attempts++;
+        shouldRetry = await policy.retry(attempts);
+      }
+
+      expect(attempts, equals(maxAttempts));
+    });
   });
 
   group('FixedIntervalRetryPolicy Tests', () {
