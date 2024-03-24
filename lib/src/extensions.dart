@@ -59,13 +59,12 @@ extension FlowX<T> on Flow<T> {
   /// [transform] : A function that takes a value of type `T` (the input
   /// type of the flow) and returns a value of type `U` (the output type
   /// of the map operation).
-  Flow<U> mapNotNull<U>(FutureOr<U> Function(T value) transform) =>
-      flow((collector) async {
-        await collect((value) async {
-          final result = await transform(value);
-          if (result != null) collector.emit(result);
-        });
-      });
+  Flow<U> mapNotNull<U>(FutureOr<U> Function(T value) transform) => flow((collector) async {
+    await collect((value) async {
+      final result = await transform(value);
+      if (result != null) collector.emit(result);
+    });
+  });
 
   /// Applies a transformation function and flattens the resulting streams.
   ///
