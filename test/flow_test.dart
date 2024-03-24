@@ -176,6 +176,24 @@ void main() {
       'A', 'B', 'C', 'D'
     ]));
   });
+
+  test('Test that .mapNotNull returns a flow that contains only non-null results', () {
+    final fl = flow<int>((collector) {
+      collector.emit(1);
+      collector.emit(2);
+      collector.emit(3);
+      collector.emit(4);
+    })
+    .mapNotNull((value) {
+      if (value % 2 == 0) {
+        return value;
+      }
+      return null;
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      2, 4]));
+  });
   
   group('Timeout', () {
     test('Test that when the timeout expires a TimeoutCancellationException is thrown', () async {
