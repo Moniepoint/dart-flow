@@ -440,11 +440,7 @@ extension FlowX<T> on Flow<T> {
   ///   flow([1, 2, 3, null, 4, null]).filterNotNull()
   ///     .collect(print); // This will print only even numbers (1, 2, 3, 4)
   /// ```
-  Flow<T> filterNotNull() => flow((collector) async {
-    await collect((value) async {
-      if (value != null) collector.emit(value);
-    });
-  });
+  Flow<T> filterNotNull() => filter((value) => value != null);
 }
 
 
