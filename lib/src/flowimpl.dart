@@ -59,7 +59,7 @@ abstract interface class Flow<T> {
 
 abstract class AbstractFlow<T> extends Flow<T> {
   AbstractFlow({StreamController<T>? controller}) {
-    _controller = controller ?? StreamController.broadcast(sync: true);
+    _controller = controller ?? StreamController.broadcast(sync: false);
     _flowCollector = FlowCollectorImpl(_controller!.sink);
     _controller?.onListen = onListen;
   }
