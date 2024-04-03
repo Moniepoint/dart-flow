@@ -1,6 +1,7 @@
 
 import 'dart:async';
 import 'package:flow/flow.dart';
+import 'package:flow/src/collectors/flow_collector.dart';
 
 /// A flow wrapper that imposes a timeout on the collection process of an
 /// upstream flow.
@@ -24,7 +25,7 @@ import 'package:flow/flow.dart';
 /// timeoutFlow.collect(print); // Will throw TimeoutCancellationException
 /// ```
 @ExperimentalFlowApi()
-class Timeout<T> implements Flow<T> {
+class Timeout<T> extends AbstractFlow<T> {
   /// The timer used to enforce the timeout duration.
   Timer? timer;
 
@@ -36,6 +37,9 @@ class Timeout<T> implements Flow<T> {
 
   /// The duration after which the timeout occurs.
   final Duration duration;
+
+
+  final Zone _context = Zone.current.parent ?? Zone.root;
 
   /// Constructs a [Timeout] instance with the specified upstream flow and
   /// duration.
@@ -49,35 +53,41 @@ class Timeout<T> implements Flow<T> {
 
   void registerTimer() {
     if (completer.isCompleted) return;
-    timer = Timer(duration, () {
-      completer.completeError(TimeoutCancellationException(duration));
+    _context.run(() {
+      timer?.cancel();
+      timer = Timer(duration, () {
+        completer.completeError(TimeoutCancellationException(duration));
+      });
+    });
+  }
+
+  void _closeTimer() {
+    _context.run(() {
+      timer?.cancel();
+      timer = null;
     });
   }
 
   @override
-  FutureOr<void> collect(FutureOr<void> Function(T value) collector) async {
+  Future<void> invokeSafely(FlowCollector<T> collector) async {
     registerTimer();
 
-    final collection = Future(() async {
-      await upstreamFlow.collect((value) {
-        if (!completer.isCompleted) {
-          collector.call(value);
-          timer?.cancel();
-          registerTimer();
-        }
-      });
-    }).then((value) {
+    upstreamFlow.collectSafely((value) {
+      if (!completer.isCompleted) {
+        collector.emit(value);
+        timer?.cancel();
+        registerTimer();
+      }
+    }).collectWith(collector).done(() {
       if (!completer.isCompleted) completer.complete();
     });
 
     try {
-      await Future.wait([completer.future, collection], eagerError: true);
+      await Future.wait([completer.future], eagerError: true);
     } catch (e) {
-      timer?.cancel();
-      rethrow;
+      collector.addError(e);
     } finally {
-      timer?.cancel();
-      timer = null;
+      _closeTimer();
     }
   }
 }
