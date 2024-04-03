@@ -1,4 +1,5 @@
 
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flow/flow.dart';
 
@@ -12,7 +13,7 @@ void main() {
     });
 
     expect(fl.asStream(), emitsInOrder([
-      'A', 'B', 'C'
+      'A', 'B', 'C', emitsDone
     ]));
   });
 
@@ -27,7 +28,7 @@ void main() {
     });
 
     expect(fl.asStream(), emitsInOrder([
-      'A', 'B', 'C'
+      'A', 'B', 'C', emitsDone
     ]));
   });
 
@@ -57,7 +58,9 @@ void main() {
       collector.emit("A");
       collector.emit("B");
       collector.emit("C");
-    }).onCompletion((p0, collector) => print('Completed'));
+    }).onCompletion((p0, collector) async {
+      print('Completed');
+    });
 
     expect(fl.asStream(), emitsInOrder([
       'A', 'B', 'C', emitsDone
@@ -232,5 +235,41 @@ void main() {
       ]));
     });
   });
+
+  test('Test that when theres a delay and onEach continually throws catchError catches it', () async {
+    bool caughtError = false;
+    flow<String>((collector) async {
+      await Future.delayed(const Duration(milliseconds: 200));
+      collector.emit('A');
+    }).onEach((value) => throw Exception('Pending'))
+        .catchError((e, _) async {
+          caughtError = true;
+          _.emit('test1');
+          _.emit('test2');
+          _.emit('test3');
+          await Future.delayed(const Duration(milliseconds: 400));
+          _.emit('emission1');
+          _.emit('emission2');
+        })
+        .collect(print);
+
+    await Future.delayed(const Duration(seconds: 1));
+    expect(true, caughtError);
+  });
+
+  test('onEach with error', () {
+    final fl = flow((collector) {
+      collector.emit('Something');
+    }).onEach((value) => throw Exception('tere')).catchError((p0, p1) {
+      p1.emit('love');
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'love', emitsDone
+    ]));
+  });
 }
+
+
+
 

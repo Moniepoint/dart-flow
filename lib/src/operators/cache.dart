@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flow/flow.dart';
+import 'package:flow/src/collectors/safe_collector.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
 import '../collectors/flow_collector.dart';
 
+
 /// An abstract interface representing a Flow that supports caching.
 abstract class CacheFlow<T> implements Flow<T> {
+
   /// Asynchronously collects values from the cache.
   @override
   FutureOr<void> collect(FutureOr<void> Function(T value) collector) async {
@@ -32,6 +35,24 @@ abstract class CacheFlow<T> implements Flow<T> {
   ///  A `Duration` object representing the estimated age of the cached data,
   ///  or `Duration(days: 30)` if no cached data exists.
   FutureOr<Duration> cacheAge() => const Duration(days: 30);
+
+  @override
+  SafeCollector collectSafely(FutureOr<void> Function(T value) collector,  [String? name]) {
+    final safeCollector = SafeCollector();
+
+    void collectAsync() async {
+      try {
+        await collect(collector);
+      } catch(e) {
+        safeCollector.onError(e);
+      } finally {
+        safeCollector.onDone();
+      }
+    }
+
+    collectAsync();
+    return safeCollector;
+  }
 }
 
 
@@ -262,7 +283,7 @@ class CacheThenFetch<T> implements CacheStrategy<T> {
       await originalFlow.collect(cacheFlow.write);
     } catch (e) {
       combinedFlowException.add(e.toException());
-      throw combinedFlowException;
+      rethrow;
     }
   }
 }

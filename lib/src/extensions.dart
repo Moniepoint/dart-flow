@@ -14,8 +14,6 @@ import 'builders.dart';
 ///
 ///
 /// Extensions on flow
-///
-
 extension FlowX<T> on Flow<T> {
   /// Converts this flow into a `Stream<T>`.
   ///
@@ -32,9 +30,12 @@ extension FlowX<T> on Flow<T> {
   /// [transform] : A function that takes a value of type `T` (the input
   /// type of the flow) and returns a value of type `U` (the output type
   /// of the map operation).
-  Flow<U> map<U>(FutureOr<U> Function(T value) transform) => flow((collector) async {
-    await collect((value) async => collector.emit(await transform(value)));
-  });
+  Flow<U> map<U>(FutureOr<U> Function(T value) transform) {
+    return flow((collector) async {
+      collectSafely((value) async => collector.emit(await transform(value)))
+          .collectWith(collector);
+    });
+  }
 
   /// Returns a flow that contains only non-null results of applying the
   /// given transform function to each value of the original flow
@@ -86,7 +87,9 @@ extension FlowX<T> on Flow<T> {
   /// of the flow) and returns a `Flow<U>` (the output type can be anything
   /// that implements `Flow`).
   Flow<U> flatMap<U>(Flow<U> Function(T value) action) => flow((collector) async {
-    await collect((value) async => await action(value).collect(collector.emit));
+    collectSafely((value) async {
+      action(value).collectSafely(collector.emit).collectWith(collector);
+    }).collectWith(collector).done(() {});
   });
 
   /// Filters elements emitted by the flow based on a provided predicate function.
@@ -108,9 +111,9 @@ extension FlowX<T> on Flow<T> {
   /// returns `true`, the value is emitted by the resulting flow. Otherwise,
   /// the value is discarded.
   Flow<T> filter(FutureOr<bool> Function(T value) action) => flow((collector) async {
-    await collect((value) async {
+    collectSafely((value) async {
       if (await action(value)) collector.emit(value);
-    });
+    }).collectWith(collector);
   });
  
   /// Filters out null from emitted values
@@ -159,12 +162,14 @@ extension FlowX<T> on Flow<T> {
   /// context of the flow.
   Flow<T> catchError(
       FutureOr<void> Function(Exception, FlowCollector<T>) action) {
-    return flow((collector) async {
-      try {
-        await collect(collector.emit);
-      } catch (e) {
-        action.call(e.toException(), collector);
-      }
+    return flow<T>((collector) async {
+      collectSafely(collector.emit).collectWith(collector).tryCatch((e) async {
+        try {
+          await action(e, collector);
+        } catch (e) {
+          collector.addError(e);
+        }
+      });
     });
   }
 
@@ -188,10 +193,8 @@ extension FlowX<T> on Flow<T> {
   /// It can be used for pre-processing or any actions needed before
   /// collecting data in the flow.
   Flow<T> onStart(FutureOr<void> Function(FlowCollector<T>) action) => flow((collector) async {
-    try {
-      action(collector);
-    } finally  {}
-    await collect(collector.emit);
+    try { await action(collector); } catch(e) { collector.addError(e); }
+    collectSafely(collector.emit).collectWith(collector);
   });
 
   /// Returns a flow that invokes the given [action] before each value of the
@@ -219,12 +222,17 @@ extension FlowX<T> on Flow<T> {
   /// [action] : A function that takes a value of type `T` and potentially
   /// performs asynchronous operations. This function is called for each value
   /// emitted by the source Flow.
-  Flow<T> onEach(FutureOr<void> Function(T value) action) => flow((collector) async {
-    await collect((value) async {
-      await action(value);
-      collector.emit(value);
-    });
+  Flow<T> onEach(FutureOr<void> Function(T value) action) => flow((collector) {
+    collectSafely((value) async {
+      try {
+        await action(value);
+        collector.emit(value);
+      } catch (e) {
+        collector.addError(e);
+      }
+    }).collectWith(collector);
   });
+
 
   /// A Function that returns a flow where all subsequent repetitions of the
   /// same value are filtered out.
@@ -298,16 +306,21 @@ extension FlowX<T> on Flow<T> {
   Flow<T> onEmpty(FutureOr<void> Function(FlowCollector<T>) action) {
     return flow((collector) async {
       bool isEmpty = true;
-      await collect((value) {
+      collectSafely((value) {
         isEmpty = false;
         collector.emit(value);
+      }).collectWith(collector).tryCatch((e) {
+        isEmpty = false;
+        collector.addError(e);
+      }).done(() async {
+        if (isEmpty) {
+          await action.call(collector);
+        }
+        collector.close();
       });
-
-      if (isEmpty) {
-        await action.call(collector);
-      }
     });
   }
+
 
   /// Executes an action upon flow completion (needs improvement).
   ///
@@ -325,19 +338,13 @@ extension FlowX<T> on Flow<T> {
   Flow<T> onCompletion(
       FutureOr<void> Function(Exception?, FlowCollector<T>) action) {
     return flow((collector) async {
-      try {
-        await collect(collector.emit);
-      } catch (e) {
-        action(e.toException(), collector);
-        rethrow;
-      }
-
-      // TODO properly handle completion and ensure that the error within it's context is sent
-      try {
-        action(null, collector);
-      } finally {
-        // print('<====Completed=====>');
-      }
+      collectSafely(collector.emit).collectWith(collector).done(() {
+        try {
+          action(null, collector);
+          collector.close();
+        } finally {
+        }
+      });
     });
   }
 
@@ -425,9 +432,10 @@ extension FlowX<T> on Flow<T> {
             attempts++;
             await internalRetry();
           } else {
-            rethrow;
+            collector.addError(e);
           }
         }
+        collector.close();
       }
       await internalRetry();
     });
@@ -525,18 +533,6 @@ extension FlowX<T> on Flow<T> {
 
 }
 
-
-extension StreamX<T> on Stream<T> {
-  /// TODO document
-  Flow<T> asFlow() {
-    return flow((collector) async {
-      await for (var value in this) {
-        collector.emit(value);
-      }
-    });
-  }
-}
-
 ///
 ///
 /// TODO document
@@ -553,12 +549,14 @@ class _FlowToStream<T> extends Stream<T> {
 
   _FlowToStream(this._flow);
 
-  void _onListen() {
-    _flow.catchError((p0, p1) async {
+  void _onListen() async {
+    await _flow.catchError((p0, p1) async {
       _testStreamController.addError(p0);
     }).onCompletion((p0, emitter) {
       _testStreamController.close();
-    }).collect((value) => _testStreamController.add(value));
+    }).collect((value) {
+      _testStreamController.add(value);
+    });
   }
 
   @override
@@ -567,5 +565,16 @@ class _FlowToStream<T> extends Stream<T> {
     _subscription = _testStreamController.stream.listen(onData,
         onError: onError, onDone: onDone, cancelOnError: cancelOnError);
     return _subscription!;
+  }
+}
+
+extension StreamX<T> on Stream<T> {
+  /// TODO document
+  Flow<T> asFlow() {
+    return flow((collector) async {
+      await for (var value in this) {
+        collector.emit(value);
+      }
+    });
   }
 }
