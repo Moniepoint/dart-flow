@@ -222,6 +222,18 @@ void main() {
     await Future.delayed(const Duration(seconds: 1));
     expect(true, caughtError);
   });
+
+  test('onEach with error', () {
+    final fl = flow((collector) {
+      collector.emit('Something');
+    }).onEach((value) => throw Exception('tere')).catchError((p0, p1) {
+      p1.emit('love');
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'love', emitsDone
+    ]));
+  });
 }
 
 

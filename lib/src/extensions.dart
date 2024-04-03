@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flow/src/collectors/safe_collector.dart';
 import 'package:flow/src/operators/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
 import 'package:flow/src/operators/timeout.dart';

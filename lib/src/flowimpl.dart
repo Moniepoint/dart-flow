@@ -134,22 +134,22 @@ abstract class AbstractFlow<T> extends Flow<T> {
 
     _subscription = _controller?.stream
         .listen((value) => scheduleTask(collector(value)),
-            cancelOnError: false,
-            onError: (e, s) => scheduleTask(safeCollector.sendError(e, s)),
-            onDone: () {
-              hasSignaledDoneEvent = true;
-              if (pendingCollection == 0) {
-                safeCollector.onDone();
-                _closeSubscription();
-              }
-            });
+        cancelOnError: false,
+        onError: (e, s) => scheduleTask(safeCollector.sendError(e, s)),
+        onDone: () {
+          hasSignaledDoneEvent = true;
+          if (pendingCollection == 0) {
+            safeCollector.onDone();
+            _closeSubscription();
+          }
+        });
 
     return safeCollector;
   }
 
   void _ensureActive() {
     if (null == _controller || true == _controller?.isClosed) {
-      _controller = StreamController.broadcast(sync: true);
+      _controller = StreamController.broadcast(sync: false);
       _flowCollector = FlowCollectorImpl(_controller!.sink);
       _controller!.onListen = onListen;
     }
