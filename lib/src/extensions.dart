@@ -37,6 +37,36 @@ extension FlowX<T> on Flow<T> {
     });
   }
 
+  /// Returns a flow that contains only non-null results of applying the
+  /// given transform function to each value of the original flow
+  ///
+  /// Example:
+  /// ```dart
+  /// final fl = flow<int>((collector) {
+  ///     collector.emit(1);
+  ///     collector.emit(2);
+  ///     collector.emit(3);
+  ///     collector.emit(4);
+  ///   })
+  ///   .mapNotNull((value) {
+  ///     if (value % 2 == 0) {
+  ///       return value;
+  ///     }
+  ///     return null;
+  ///   }).collect(print)
+  ///  
+  /// This will print (2, 4)
+  /// ```
+  /// [transform] : A function that takes a value of type `T` (the input
+  /// type of the flow) and returns a value of type `U` (the output type
+  /// of the map operation).
+  Flow<U> mapNotNull<U>(FutureOr<U> Function(T value) transform) => flow((collector) async {
+    await collect((value) async {
+      final result = await transform(value);
+      if (result != null) collector.emit(result);
+    });
+  });
+
   /// Applies a transformation function and flattens the resulting streams.
   ///
   /// This function is similar to `map` but allows transforming each element
@@ -85,6 +115,15 @@ extension FlowX<T> on Flow<T> {
       if (await action(value)) collector.emit(value);
     }).collectWith(collector);
   });
+ 
+  /// Filters out null from emitted values
+  ///
+  /// Example:
+  /// ```dart
+  ///   flow([1, 2, 3, null, 4, null]).filterNotNull()
+  ///     .collect(print); // This will print only numbers (1, 2, 3, 4)
+  /// ```
+  Flow<T> filterNotNull() => filter((value) => value != null);
 
   /// Handles errors that occur within the flow.
   ///
@@ -491,6 +530,7 @@ extension FlowX<T> on Flow<T> {
       await strategy.handle(cacheFlow, this, collector);
     });
   }
+
 }
 
 ///

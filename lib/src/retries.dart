@@ -22,8 +22,22 @@ abstract class RetryPolicy {
       int multiplier,
       int maxDelay}) = _ExponentialBackOff;
 
+  factory RetryPolicy.randomisedBackoff({
+    int baseDelay,
+    int maxDelay,
+    int maxAttempts,
+  }) = _RandomisedBackoff;
+
+  factory RetryPolicy.linearBackoff({
+    int baseDelay,
+    int maxDelay,
+    int maxAttempts,
+    int multiplier,
+  }) = _LinearBackoff;
+
   factory RetryPolicy.circuitBreaker(
       {int failureThreshold,
+      int maxAttempts,
       int resetTimeout,
       int halfOpenThreshold,
       ({int start, int end}) coolDownTime}) = _CircuitBreakerRetryPolicy;
@@ -108,6 +122,9 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
   /// open state (default: 4).
   final int failureThreshold;
 
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
   /// The time the circuit remains open before transitioning back to
   /// closed (milliseconds) (default: 10000).
   final int resetTimeout;
@@ -127,6 +144,7 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
 
   _CircuitBreakerRetryPolicy({
     this.failureThreshold = 4,
+    this.maxAttempts = 20,
     this.resetTimeout = 10000,
     this.halfOpenThreshold = 2,
     this.coolDownTime = const (start: 1000, end: 2000),
@@ -134,6 +152,11 @@ class _CircuitBreakerRetryPolicy implements RetryPolicy {
 
   @override
   FutureOr<bool> retry<T>(int attempts) async {
+    if (attempts >= maxAttempts) {
+      state = _CircuitState.closed;
+      halfOpenAttempts = 0;
+      return false;
+    }
     return await _transitionState(attempts);
   }
 
@@ -223,6 +246,70 @@ final class _DecorrelatedJitterRetryPolicy implements RetryPolicy {
     final jitterAmount = (Random().nextDouble() * delay * jitterFactor).toInt();
 
     delay = (delay + jitterAmount).clamp(0, maxDelay);
+
+    await Future.delayed(Duration(milliseconds: delay));
+
+    return attempts < maxAttempts;
+  }
+}
+
+
+/// Implements a retry strategy with randomised backoff
+final class _RandomisedBackoff implements RetryPolicy {
+  /// The initial delay between retries in milliseconds (default: 2000).
+  final int baseDelay;
+
+  /// The maximum allowed delay between retries in milliseconds
+  /// (default: 400000).
+  final int maxDelay;
+
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
+  _RandomisedBackoff({
+    this.baseDelay = 2000,
+    this.maxDelay = 400000,
+    this.maxAttempts = 20,
+  }) : assert(baseDelay <= maxDelay);
+
+  @override
+  FutureOr<bool> retry<T>(int attempts) async {
+    int delay = Random().nextInt(maxDelay - baseDelay) + baseDelay;
+
+    await Future.delayed(Duration(milliseconds: delay));
+
+    return attempts < maxAttempts;
+  }
+}
+
+
+/// Implements a retry strategy with randomised backoff
+final class _LinearBackoff implements RetryPolicy {
+  /// The initial delay between retries in milliseconds (default: 2000).
+  final int baseDelay;
+
+  /// The maximum allowed delay between retries in milliseconds
+  /// (default: 400000).
+  final int maxDelay;
+
+  /// The maximum number of retry attempts (default: 20).
+  final int maxAttempts;
+
+  /// The maximum number of retry attempts (default: 20).
+  final int multiplier;
+
+  _LinearBackoff({
+    this.baseDelay = 2000,
+    this.maxDelay = 400000,
+    this.maxAttempts = 20,
+    this.multiplier = 1,
+  }) : assert(baseDelay <= maxDelay);
+
+  @override
+  FutureOr<bool> retry<T>(int attempts) async {
+    int delay = baseDelay * (multiplier *  attempts);
+
+    delay = delay.clamp(0, maxDelay);
 
     await Future.delayed(Duration(milliseconds: delay));
 
