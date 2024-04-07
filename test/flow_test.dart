@@ -268,6 +268,41 @@ void main() {
       'love', emitsDone
     ]));
   });
+  
+  test('any object can be thrown as an error asides '
+  'Exception and will be passed down to catchError', () {
+
+    final caseOne = flow((collector) {
+
+      collector.emit('bala');
+    }).onEach((value) => throw 'blue').catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseOne.asStream(), emitsInOrder([
+      'blue', emitsDone
+    ]));
+
+    final caseTwo = flow((collector) {
+      collector.emit('bala');
+    }).onEach((value) => throw 1).catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseTwo.asStream(), emitsInOrder([
+      1, emitsDone
+    ]));
+
+    final caseThree = flow((collector) {
+     throw ArgumentError('Argument Error');
+    }).catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseThree.asStream(), emitsInOrder([
+      isInstanceOf<ArgumentError>(), emitsDone
+    ]));
+   });
 }
 
 
