@@ -161,7 +161,7 @@ extension FlowX<T> on Flow<T> {
   /// as arguments. It can perform error handling or logging within the
   /// context of the flow.
   Flow<T> catchError(
-      FutureOr<void> Function(Exception, FlowCollector<T>) action) {
+      FutureOr<void> Function(dynamic, FlowCollector<T>) action) {
     return flow<T>((collector) async {
       collectSafely(collector.emit).collectWith(collector).tryCatch((e) async {
         try {

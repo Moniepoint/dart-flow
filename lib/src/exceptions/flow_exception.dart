@@ -1,6 +1,6 @@
 
 class CancellationException implements Exception {
-  final Exception cause;
+  final dynamic cause;
   CancellationException(this.cause);
 }
 
@@ -10,10 +10,10 @@ class FlowException implements Exception {
 }
 
 class CombinedFlowException implements Exception {
-  final List<Exception> errors;
+  final List<dynamic> errors;
   CombinedFlowException(this.errors);
 
-  void add(Exception exception) {
+  void add(dynamic exception) {
     errors.add(exception);
   }
 
@@ -40,7 +40,7 @@ extension ErrorX on Object? {
     return FlowException(this);
   }
 
-  bool isIdenticalWith(Exception exception) {
+  bool isIdenticalWith(dynamic exception) {
     return this == exception ||
         (runtimeType == exception.runtimeType &&
             toString() == exception.toString());
