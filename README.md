@@ -243,15 +243,15 @@ This approach offers more flexibility by allowing you to define a custom retry p
        .collect(print);
    ```
   
-  ### LinearBackoffRetryPolicy
+  ### RandomisedBackoffRetryPolicy
 
- The LinearBackOff retry policy increases the delay between retry attempts by a fixed increment. Unlike exponential backoff, which doubles the delay with each attempt, linear backoff provides a constant increase in the retry interval. This approach is straightforward and predictable, making it suitable for scenarios where a steady progression in retry attempts is preferred.
+ The RandomizedBackOff retry policy introduces randomness into the delay between retry attempts. Instead of following a deterministic pattern like linear or exponential backoff, randomized backoff adds a random component to the retry intervals. This randomness helps prevent synchronization among multiple clients attempting retries simultaneously, reducing contention and the likelihood of overwhelming the target system.
 
   ```dart
      flow((collector) {
        collector.emit('A');
        throw Exception('Something went wrong');
-     }).retryWith((cause) =>  RetryPolicy.linearBackoff())
+     }).retryWith((cause) =>  RetryPolicy.randomisedBackoff())
        .collect(print);
    ```
   
@@ -436,6 +436,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-
-
