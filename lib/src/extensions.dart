@@ -554,7 +554,7 @@ extension FlowX<T> on Flow<T> {
   ///
   /// Returns a new flow that merges this flow with the provided flows
   Flow<T> mergeWith(Iterable<Flow<T>> flows) {
-    return MergeFlow([this, ...flows]);
+    return MergeFlow<T>([this, ...flows]);
   }
 
   /// Combines the latest values from multiple flows into a single flow.
@@ -571,7 +571,7 @@ extension FlowX<T> on Flow<T> {
   ///             values will be emitted as a List.
   ///
   /// Returns a new flow that combines the latest values from this flow and the provided flows
-  Flow<R> combineLatestWith<R>(Iterable<Flow> flows, Combiner combiner) {
+  Flow<R> combineLatestWith<R>(Iterable<Flow> flows, Combiner<R> combiner) {
     return CombineLatestFlow<R>([this, ...flows], combiner);
   }
 
@@ -588,7 +588,7 @@ extension FlowX<T> on Flow<T> {
   ///
   /// Returns a new flow that emits values from the first flow to emit
   Flow<T> raceWith(Iterable<Flow<T>> flows) {
-    return RaceFlow([this, ...flows]);
+    return RaceFlow<T>([this, ...flows]);
   }
 
   /// Creates a new flow that emits the specified value before emitting values from this flow.

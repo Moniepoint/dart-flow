@@ -304,7 +304,7 @@ void main() {
     ]));
   });
 
-  group("Combination Operators Tests", () {
+   group("Combination Operators Tests", () {
     group('MergeFlow ', () {
       test('should emit all values from multiple flows in order', () async {
         final flow1 = flow<int>((collector) async {
@@ -318,7 +318,7 @@ void main() {
         });
 
         final mergeFlow = Flow.merge<dynamic>([flow1, flow2]);
-        expect(mergeFlow.asStream(), emitsInOrder([1, 2, 3, 4, emitsDone]));
+        expect(mergeFlow.asStream(), emitsInOrder([1, 3, 2, 4, emitsDone]));
       });
 
       test('should emit error when any flow emits error', () async {
@@ -331,7 +331,7 @@ void main() {
         });
 
         final mergeFlow = Flow.merge<int>([flow1, flow2]);
-        expect(mergeFlow.asStream(),  emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('Error in flow1'))));
+        expect(mergeFlow.asStream(),  emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('Error in flow1') )));
       });
     });
 
@@ -339,10 +339,14 @@ void main() {
       test('should combine latest values from all flows', () async {
         final flow1 = flow<String>((collector) async {
           collector.emit("A");
+          collector.emit("B");
+          collector.emit("C");
         });
         
         final flow2 = flow<int>((collector) async {
           collector.emit(1);
+          collector.emit(2);
+          collector.emit(3);
         });
 
         final combineFlow = Flow.combineLatest<String>(
@@ -351,7 +355,7 @@ void main() {
         );
 
         expect(combineFlow.asStream(), 
-          emitsInOrder(["A-1", emitsDone]));
+          emitsInOrder(["A-1", "B-1", "B-2", "C-2", "C-3", emitsDone]));
       });
 
       test('should emit error when any of the flows emit error', () async {

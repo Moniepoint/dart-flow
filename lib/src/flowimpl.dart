@@ -67,7 +67,7 @@ abstract interface class Flow<T> {
   /// [flows] : A list of flows to merge into a single flow
   ///
   /// Returns a new flow that merges all the provided flows
-  static Flow<T> merge<T>(List<Flow<T>> flows) => MergeFlow(flows);
+  static Flow<T> merge<T>(List<Flow<T>> flows) => MergeFlow<T>(flows);
 
   /// Combines the latest values from multiple flows into a single flow.
   /// Example:
@@ -85,13 +85,18 @@ abstract interface class Flow<T> {
   /// Returns a new flow that combines the latest values from all provided flows using the combiner function
   static Flow<T> combineLatest<T>(List<Flow<dynamic>> flows, Combiner<T> combiner) => CombineLatestFlow<T>(flows, combiner);
 
-  /// Creates a race between multiple flows, emitting values only from the first flow to emit.
+  /// Creates a race between multiple flows, emitting value only from the first flow to emit.
   /// Example:
   /// ```dart
-  /// final flow1 = flowOf([1, 2, 3]).delay(Duration(seconds: 2));
-  /// final flow2 = flowOf([4, 5, 6]).delay(Duration(seconds: 1));
-  /// final raced = Flow.race([flow1, flow2]);
-  /// raced.collect(print); // prints 4, 5, 6 since flow2 emits first
+  ///  final flow1 = flow<String>((collector) async {
+  ///  await Future.delayed(const Duration(milliseconds: 200));
+  ///  collector.emit("A");
+  ///  });
+  /// final flow2 = flow<String>((collector) async {
+  ///    collector.emit("B");
+  ///  });
+  /// final race = RaceFlow([flow1, flow2]);
+  /// race.collect(print); // prints "B"
   /// ```
   ///
   /// [flows] : A list of flows to race against each other
@@ -244,18 +249,23 @@ class MergeFlow<T> extends AbstractFlow<T> {
 
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
-    if(flows.isEmpty) return;
+    if (flows.isEmpty) return;
     bool hasError = false;
-    for (int i = 0; i < flows.length; i++) {
-      if (hasError) break;
-      final flow = flows[i];
+    
+    final futures = flows.map((flow) async {
       await flow.catchError((cause, st) {
-        hasError = true;
-        collector.addError(cause);
+        if (!hasError) {
+          hasError = true;
+          collector.addError(cause);
+        }
       }).collect((value) {
-        collector.emit(value);
+        if (!hasError) {
+          collector.emit(value);
+        }
       });
-    }
+    });
+
+    await Future.wait(futures);
   }
 }
 
@@ -266,6 +276,7 @@ typedef Combiner<T> = T Function(List<dynamic> values);
 /// This Flow waits for all source Flows to emit at least one value before emitting any combined values.
 /// When any source Flow emits a new value, it combines the latest values from all Flows using the provided
 /// combiner function and emits the result.
+/// If any source Flow emits an error, collection stops and the error is propagated.
 ///
 /// Example:
 /// ```dart
@@ -277,43 +288,54 @@ typedef Combiner<T> = T Function(List<dynamic> values);
 /// ```
 ///
 /// [R] The type of values emitted by this Flow after combining
-class CombineLatestFlow<R> extends AbstractFlow<R> {
+class CombineLatestFlow<T> extends AbstractFlow<T> {
   /// The source Flows to combine values from
   final List<Flow<dynamic>> flows;
 
   /// Function that combines the latest values from all Flows into a single value
-  final Combiner combiner;
+  final Combiner<T> combiner;
 
   /// Creates a CombineLatestFlow that combines values from the given [flows] using the [combiner] function
   CombineLatestFlow(this.flows, this.combiner);
 
   @override
-  Future<void> invokeSafely(FlowCollector<R> collector) async {
-    if(flows.isEmpty) return;
+  Future<void> invokeSafely(FlowCollector<T> collector) async {
+    if (flows.isEmpty) return;
+    
     final collectedValues = List<dynamic>.filled(flows.length, null);
     final isValueCollected = List<bool>.filled(flows.length, false);
     bool hasError = false;
 
-    for (int i = 0; i < flows.length; i++) {
-      if (hasError) break;
-      final flow = flows[i];
+    final futures = flows.asMap().entries.map((entry) async {
+      if (hasError) return;
+      final index = entry.key;
+      final flow = entry.value;
+      
       await flow.catchError((cause, st) {
-        hasError = true;
-        collector.addError(cause);
+        if (!hasError) {
+          hasError = true;
+          collector.addError(cause);
+        }
       }).collect((value) {
-        collectedValues[i] = value;
-        isValueCollected[i] = true;
+       if (hasError) return;
+        
+        collectedValues[index] = value;
+        isValueCollected[index] = true;
+        
         if (isValueCollected.every((collected) => collected)) {
-          final values = List<dynamic>.from(collectedValues);
-            try {
-              final combinedValue = combiner(values);
-              collector.emit(combinedValue);
-            } catch (e, st) {
-              collector.addError(e, st);
-            }
+          try {
+            final values = List<dynamic>.from(collectedValues);
+            final combinedValue = combiner(values);
+            collector.emit(combinedValue);
+          } catch (e, st) {
+            hasError = true;
+            collector.addError(e, st);
+          }
         }
       });
-    }
+    });
+
+    await Future.wait(futures);
   }
 }
 
@@ -322,6 +344,7 @@ class CombineLatestFlow<R> extends AbstractFlow<R> {
 ///
 /// If the provided list of Flows is empty, the resulting Flow completes immediately
 /// without emitting any values.
+/// If any source Flow emits an error, collection stops and the error is propagated.
 ///
 /// Example:
 /// ```dart
@@ -347,25 +370,26 @@ class RaceFlow<T> extends AbstractFlow<T> {
     if (flows.isEmpty) return;
 
     bool hasWinner = false;
+    bool hasError = false;
     int? winnerIndex;
-    
-    final futures = flows.asMap().entries.map((entry) async {
-      if (hasWinner && entry.key != winnerIndex) return;
-      
-      await entry.value.catchError((cause, st) {
-        if (!hasWinner) {
-          collector.addError(cause);
-        }
-      }).collect((value) {
-        if (!hasWinner) {
-          hasWinner = true;
-          winnerIndex = entry.key;
-        }
-        
-        if (entry.key == winnerIndex) {
-          collector.emit(value);
-        }
-      });
+
+      final futures = flows.asMap().entries.map((entry) async {
+      final index = entry.key;
+      if (hasError || (hasWinner && index != winnerIndex)) return;
+        await entry.value.catchError((cause, _) {
+          if (!hasWinner) {
+            hasError = true;
+            collector.addError(cause);
+          }
+        }).collect((value) {
+          if (!hasError && !hasWinner) {
+            hasWinner = true;
+            winnerIndex = index;
+            collector.emit(value);
+          } else if (index == winnerIndex && !hasError) {
+            collector.emit(value);
+          }
+        });
     }).toList();
 
     await Future.wait(futures);
