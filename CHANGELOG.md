@@ -1,10 +1,15 @@
-## 0.0.1-alpha02 (2024-03-18)
+## 0.0.1-alpha02 (2024-03-22)
 
 **New Features:**
 
 * **Flow Transformations:**
-  * `onEach<U>(FutureOr<void> Function(U value) action)`: Enables executing actions on each value emitted by the flow, allowing for side effects or value modifications before passing them downstream.
-  * `onEmpty(FutureOr<void> Function(FlowCollector<T>) action)`: Provides a mechanism to handle empty flows by executing a specific action if no elements are emitted.
+  * Added `onEach<U>(FutureOr<void> Function(U value) action)`: Enables executing actions on each value emitted by the flow, allowing for side effects or value modifications before passing them downstream.
+  * Added `onEmpty(FutureOr<void> Function(FlowCollector<T>) action)`: Provides a mechanism to handle empty flows by executing a specific action if no elements are emitted.
+  * Added `filter(FutureOr<bool> Function(T value) action)` method to Flow to selectively emit elements based on a predicate function.
+  * Added `distinctUntilChanged(KeySelector<K, T>, EquivalenceMethod<K>)`: which provides a mechanism to filter out subsequent repetitions of the same values within a flow. see also `distinctUntilChangedBy`.
+  * Added `cache(CacheFlow<T>, CacheStrategy<T>)`: to create a new Flow that could provide values from the cache or reads directly from the original flow depending on the caching strategy. See Caching Support.
+  * Added `retryWith(RetryPolicy Function(Exception cause) action)` method to Flow for flexible retry strategies based on custom retry policies.
+  * Added `timeout(Duration)` Extends a flow with a timeout mechanism
 * **Caching Support:**
   * `CacheFlow<T>`: Represents a data source or storage mechanism for caching values of type `T`.
   * **Predefined Cache Strategies:** This release introduces several concrete implementations of the `CacheStrategy<T>` interface, offering various cache invalidation and retrieval behaviors:
@@ -13,6 +18,9 @@
     * `CacheThenFetch<T>`: Prioritizes cached data and updates the cache only after fetching new data (if successful).
     * `CacheAndFetch<T>`: Attempts to retrieve data concurrently from both the cache and the primary source. Emits cached data first if valid, but also fetches fresh data to update the cache.
     * `CacheOrStaleCacheOnFetchError<T>`: Prioritizes cached data, even if stale. Fetches from the primary source, but if fetching fails, uses potentially outdated cached data as a fallback.
+* **Retries Support:**
+  * Created `ExponentialBackOff` as a concrete implementation of `RetryPolicy` for exponential back off retry strategy.
+  * Created `CircuitBreakerRetryPolicy` as a concrete implementation of `RetryPolicy` for circuit breaker patterns.
 
 **API Changes:**
 

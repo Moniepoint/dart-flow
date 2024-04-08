@@ -23,11 +23,26 @@ class CombinedFlowException implements Exception {
   }
 }
 
+class TimeoutCancellationException implements Exception {
+  final Duration duration;
+
+  TimeoutCancellationException(this.duration);
+
+  @override
+  String toString() => "Flow execution timed out after $duration";
+}
+
 extension ErrorX on Object? {
   Exception toException() {
     if (this is Exception) {
       return this as Exception;
     }
     return FlowException(this);
+  }
+
+  bool isIdenticalWith(Exception exception) {
+    return this == exception ||
+        (runtimeType == exception.runtimeType &&
+            toString() == exception.toString());
   }
 }

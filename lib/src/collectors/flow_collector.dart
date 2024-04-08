@@ -1,6 +1,4 @@
-import 'dart:async';
 
-import 'package:flow/flow.dart';
 
 
 /// Abstract class representing a collector for emitting data in a Flow.
@@ -9,6 +7,12 @@ import 'package:flow/flow.dart';
 /// a `Flow`. Concrete implementations must adhere to
 /// this interface and provide a mechanism to send data downstream in the flow.
 abstract class FlowCollector<T> {
+
+  void addError(Object e, [StackTrace? trace]);
+
+
+  void close();
+
   /// Emits a value of type `T` into the flow.
   ///
   /// This method is the core functionality of the `FlowCollector`. Specific

@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flow/src/exceptions/flow_exception.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flow/flow.dart';
 
@@ -13,7 +12,7 @@ main() {
 
 
   group('FetchOrElseCache', () {
-    test('Test that values from primary flow are emitted when it passes', () {
+    test('Test that values from primary flow are emitted when it passes', ()  async {
       //Arrange
       final cacheFlow = TestCacheFlow<int>(
           'test_key', fromJson: (value) => int.parse('$value'), toJson: (v) => v);
@@ -24,6 +23,7 @@ main() {
 
         const fetchOrElse = FetchOrElseCache();
         await fetchOrElse.handle(cacheFlow, primaryFlow, collector);
+        print('Done First');
       });
 
       //Act and Assert
@@ -54,7 +54,7 @@ main() {
       ]));
     });
 
-    test('Test that when primary doesnt produce values and cache has expired nothing is emitted', () {
+    test('Test that when primary doesnt produce values and cache has expired nothing is emitted', () async {
       final cacheFlow = TestCacheFlow<int>(
           'test_key', fromJson: (value) => int.parse('$value'), toJson: (v) => v);
 
@@ -68,10 +68,12 @@ main() {
         await fetchOrElse.handle(cacheFlow, primaryFlow, collector);
       });
 
-      //Act and Assert
+      // // Act and Assert
       expect(fl.asStream(), emitsInOrder([
         emitsDone
       ]));
+      // fl.collect(print);
+      // await Future.delayed(Duration(seconds: 10));
     });
 
     test('Test that when primary fails and cache has expired the primary error is thrown', () {
@@ -107,7 +109,7 @@ main() {
 
       final fl = flow((collector) async {
         cacheFlow.write(4);
-
+        //
         const cacheOrElseFetch = CacheOrElseFetch();
         await cacheOrElseFetch.handle(cacheFlow, originalFlow, collector);
       });
