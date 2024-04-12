@@ -578,3 +578,12 @@ extension StreamX<T> on Stream<T> {
     });
   }
 }
+
+extension DurationX on num {
+  Duration get microseconds => Duration(microseconds: toInt());
+  Duration get milliseconds => Duration(milliseconds: toInt());
+  Duration get seconds => Duration(seconds: toInt());
+  Duration get minutes => Duration(minutes: toInt());
+  Duration get hours => Duration(hours: toInt());
+  Duration get days => Duration(days: toInt());
+}
