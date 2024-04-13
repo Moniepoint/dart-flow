@@ -579,6 +579,14 @@ extension StreamX<T> on Stream<T> {
   }
 }
 
+extension FutureX<T> on Future<T> {
+  Flow<T> asFlow() {
+    return flow((collector) async {
+      collector.emit(await this);
+    });
+  }
+}
+
 extension DurationX on num {
   Duration get microseconds => Duration(microseconds: toInt());
   Duration get milliseconds => Duration(milliseconds: toInt());
