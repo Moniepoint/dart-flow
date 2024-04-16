@@ -110,7 +110,7 @@ extension FlowX<T> on Flow<T> {
   /// as an argument. It should return a `FutureOr<bool>`. If the function
   /// returns `true`, the value is emitted by the resulting flow. Otherwise,
   /// the value is discarded.
-  Flow<T> filter(FutureOr<bool> Function(T value) action) => flow((collector) async {
+  Flow<T> filter(FutureOr<bool> Function(T value) action) => flow<T>((collector) async {
     collectSafely((value) async {
       if (await action(value)) collector.emit(value);
     }).collectWith(collector);
@@ -222,7 +222,7 @@ extension FlowX<T> on Flow<T> {
   /// [action] : A function that takes a value of type `T` and potentially
   /// performs asynchronous operations. This function is called for each value
   /// emitted by the source Flow.
-  Flow<T> onEach(FutureOr<void> Function(T value) action) => flow((collector) {
+  Flow<T> onEach(FutureOr<void> Function(T value) action) => flow<T>((collector) {
     collectSafely((value) async {
       try {
         await action(value);
@@ -270,7 +270,7 @@ extension FlowX<T> on Flow<T> {
   /// ```
   /// Output: 21,25,22
   Flow<T> distinctUntilChangedBy<K>(K Function(T value) keySelector) =>
-      Distinct(upstreamFlow: this, keySelector: keySelector).call();
+      Distinct<K, T>(upstreamFlow: this, keySelector: keySelector).call();
 
   /// Creates a new flow that executes the provided action ([action]) only
   /// if the original flow emits no events (i.e., is empty).
@@ -304,7 +304,7 @@ extension FlowX<T> on Flow<T> {
   /// emit any values. Otherwise, the original flow's events are simply forwarded
   /// downstream without any modification.
   Flow<T> onEmpty(FutureOr<void> Function(FlowCollector<T>) action) {
-    return flow((collector) async {
+    return flow<T>((collector) async {
       bool isEmpty = true;
       collectSafely((value) {
         isEmpty = false;
@@ -337,7 +337,7 @@ extension FlowX<T> on Flow<T> {
   /// cleanup, or handling any errors that might occur during completion.
   Flow<T> onCompletion(
       FutureOr<void> Function(Exception?, FlowCollector<T>) action) {
-    return flow((collector) async {
+    return flow<T>((collector) async {
       collectSafely(collector.emit).collectWith(collector).done(() {
         try {
           action(null, collector);
@@ -396,7 +396,7 @@ extension FlowX<T> on Flow<T> {
   ///
   /// Returns:
   ///   * A new `Flow<T>` object that incorporates the timeout functionality.
-  Flow<T> timeout(Duration duration) => Timeout(this, duration);
+  Flow<T> timeout(Duration duration) => Timeout<T>(this, duration);
 
   /// Implements retry logic based on a provided function.
   ///
@@ -422,7 +422,7 @@ extension FlowX<T> on Flow<T> {
   /// current attempt number) as arguments. It determines whether to retry
   /// the flow based on the value returned(true|false) by [action]
   Flow<T> retryWhen(FutureOr<bool> Function(Exception, int) action) {
-    return flow((collector) async {
+    return flow<T>((collector) async {
       int attempts = 0;
       FutureOr<void> internalRetry() async {
         try {
@@ -526,7 +526,7 @@ extension FlowX<T> on Flow<T> {
   ///  A new Flow that incorporates the caching logic defined by the provided
   ///  `CacheStrategy` and `CacheFlow` objects.
   Flow<T> cache(CacheFlow<T> cacheFlow, CacheStrategy<T> strategy) {
-    return flow((collector) async {
+    return flow<T>((collector) async {
       await strategy.handle(cacheFlow, this, collector);
     });
   }
@@ -575,6 +575,14 @@ extension StreamX<T> on Stream<T> {
       await for (var value in this) {
         collector.emit(value);
       }
+    });
+  }
+}
+
+extension FutureX<T> on Future<T> {
+  Flow<T> asFlow() {
+    return flow((collector) async {
+      collector.emit(await this);
     });
   }
 }
