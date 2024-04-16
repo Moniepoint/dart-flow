@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flow/src/extensions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flow/flow.dart';
 
@@ -277,6 +278,25 @@ main() {
       ]));
     });
   });
+
+  test('Test Cache implementation', () async {
+    final cacheFlow = TestCacheFlow<int>('test_key',
+        fromJson: (value) => int.parse('$value'),
+        toJson: (v) => v
+    );
+
+    cacheFlow.write(2);
+
+    await Future.delayed(10.milliseconds);
+
+    final fl = flow((collector) {
+      collector.emit(1);
+    }).map((value) => value).cache(cacheFlow, CacheThenFetch(maxAge: 100000.milliseconds));
+
+    expect(fl.asStream(), emitsInOrder([
+      2, emitsDone
+    ]));
+  });
 }
 
 class TestCacheFlow<T> extends CacheFlow<T> {
@@ -291,7 +311,8 @@ class TestCacheFlow<T> extends CacheFlow<T> {
   String get _modifiedTimeKey => '${dataKey}_last_modified_time';
 
   @override
-  FutureOr<T?> read() {
+  FutureOr<T?> read() async {
+    await Future.delayed(100.milliseconds);
     final T value = fromJson(sharedPreference[dataKey]);
     return value;
   }
