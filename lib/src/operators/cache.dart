@@ -1,18 +1,29 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flow/flow.dart';
+import 'package:flow/src/collectors/safe_collector.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
-import 'collectors/flow_collector.dart';
+import 'package:flow/src/task_pool_executor.dart';
+import '../collectors/flow_collector.dart';
+
 
 /// An abstract interface representing a Flow that supports caching.
 abstract class CacheFlow<T> implements Flow<T> {
+
+  final int _invocationId = Random().nextInt(10000000);
+
   /// Asynchronously collects values from the cache.
   @override
   FutureOr<void> collect(FutureOr<void> Function(T value) collector) async {
-    final value = await read();
-    if (null != value) {
-      await collector(value);
-    }
+    final completer = Completer();
+    currentTaskPool()?.registerTask(Task(ExecutionType.signalCollection));
+    collectSafely(collector)
+        .tryCatch((a) => completer.completeError(a))
+        .done(() {
+          if (!completer.isCompleted) completer.complete();
+        });
+    return completer.future;
   }
 
   /// Writes data to the cache.
@@ -32,6 +43,32 @@ abstract class CacheFlow<T> implements Flow<T> {
   ///  A `Duration` object representing the estimated age of the cached data,
   ///  or `Duration(days: 30)` if no cached data exists.
   FutureOr<Duration> cacheAge() => const Duration(days: 30);
+
+  @override
+  SafeCollector collectSafely(FutureOr<void> Function(T value) collector, [String? name]) {
+    final safeCollector = SafeCollector();
+    int id = _invocationId + hashCode;
+
+    void collectAsync() async {
+      try {
+        currentTaskPool()?.registerTask(
+            Task(ExecutionType.signalInvocation, invocationId: id));
+        final value = await read();
+        if (value != null) {
+          collector(value);
+        }
+      } catch (e) {
+        safeCollector.onError(e);
+      } finally {
+        currentTaskPool()?.registerTask(
+            Task(ExecutionType.signalClosure, invocationId: id));
+        safeCollector.onDone();
+      }
+    }
+
+    collectAsync();
+    return safeCollector;
+  }
 }
 
 
@@ -262,7 +299,7 @@ class CacheThenFetch<T> implements CacheStrategy<T> {
       await originalFlow.collect(cacheFlow.write);
     } catch (e) {
       combinedFlowException.add(e.toException());
-      throw combinedFlowException;
+      rethrow;
     }
   }
 }

@@ -1,4 +1,5 @@
 
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flow/flow.dart';
 
@@ -12,7 +13,7 @@ void main() {
     });
 
     expect(fl.asStream(), emitsInOrder([
-      'A', 'B', 'C'
+      'A', 'B', 'C', emitsDone
     ]));
   });
 
@@ -27,7 +28,7 @@ void main() {
     });
 
     expect(fl.asStream(), emitsInOrder([
-      'A', 'B', 'C'
+      'A', 'B', 'C', emitsDone
     ]));
   });
 
@@ -57,7 +58,9 @@ void main() {
       collector.emit("A");
       collector.emit("B");
       collector.emit("C");
-    }).onCompletion((p0, collector) => print('Completed'));
+    }).onCompletion((p0, collector) async {
+      print('Completed');
+    });
 
     expect(fl.asStream(), emitsInOrder([
       'A', 'B', 'C', emitsDone
@@ -160,5 +163,148 @@ void main() {
       'NotEmpty', emitsDone
     ]));
   });
+
+  test('Test that .filterNotNull filters out null from emitted values', () async {
+    final fl = flow<String?>((collector) {
+      collector.emit("A");
+      collector.emit("B");
+      collector.emit("C");
+      collector.emit(null);
+      collector.emit(null);
+      collector.emit('D');
+    })
+    .filterNotNull();
+
+    expect(fl.asStream(), emitsInOrder([
+      'A', 'B', 'C', 'D'
+    ]));
+  });
+
+  test('Test that .mapNotNull returns a flow that contains only non-null results', () {
+    final fl = flow<int>((collector) {
+      collector.emit(1);
+      collector.emit(2);
+      collector.emit(3);
+      collector.emit(4);
+    })
+    .mapNotNull((value) {
+      if (value % 2 == 0) {
+        return value;
+      }
+      return null;
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      2, 4]));
+  });
+  
+  group('Timeout', () {
+    test('Test that when the timeout expires a TimeoutCancellationException is thrown', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 1000));
+        collector.emit('NotEmpty');
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        emitsError(isInstanceOf<TimeoutCancellationException>())
+      ]));
+    });
+
+    test('Test that if we emit values before a timeout it is emitted ', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 300));
+        collector.emit('EscapesTimeout-1');
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        'EscapesTimeout-1', emitsError(isInstanceOf<TimeoutCancellationException>())
+      ]));
+    });
+
+    test('Test that the timeout is restarted/reset for each emission', () async {
+      final fl = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 300));
+        collector.emit('EscapesTimeout-1');
+        await Future.delayed(const Duration(milliseconds: 350));
+        collector.emit('EscapesTimeout-2');
+      }).timeout(const Duration(milliseconds: 400));
+
+      expect(fl.asStream(), emitsInOrder([
+        'EscapesTimeout-1', 'EscapesTimeout-2'
+      ]));
+    });
+  });
+
+  test('Test that when theres a delay and onEach continually throws catchError catches it', () async {
+    bool caughtError = false;
+    flow<String>((collector) async {
+      await Future.delayed(const Duration(milliseconds: 200));
+      collector.emit('A');
+    }).onEach((value) => throw Exception('Pending'))
+        .catchError((e, _) async {
+          caughtError = true;
+          _.emit('test1');
+          _.emit('test2');
+          _.emit('test3');
+          await Future.delayed(const Duration(milliseconds: 400));
+          _.emit('emission1');
+          _.emit('emission2');
+        })
+        .collect(print);
+
+    await Future.delayed(const Duration(seconds: 1));
+    expect(true, caughtError);
+  });
+
+  test('onEach with error', () {
+    final fl = flow((collector) {
+      collector.emit('Something');
+    }).onEach((value) => throw Exception('tere')).catchError((p0, p1) {
+      p1.emit('love');
+    });
+
+    expect(fl.asStream(), emitsInOrder([
+      'love', emitsDone
+    ]));
+  });
+  
+  test('any object can be thrown as an error asides '
+  'Exception and will be passed down to catchError', () {
+
+    final caseOne = flow((collector) {
+
+      collector.emit('bala');
+    }).onEach((value) => throw 'blue').catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseOne.asStream(), emitsInOrder([
+      'blue', emitsDone
+    ]));
+
+    final caseTwo = flow((collector) {
+      collector.emit('bala');
+    }).onEach((value) => throw 1).catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseTwo.asStream(), emitsInOrder([
+      1, emitsDone
+    ]));
+
+    final caseThree = flow((collector) {
+     throw ArgumentError('Argument Error');
+    }).catchError((error, _) {
+      _.emit(error);
+    });
+
+    expect(caseThree.asStream(), emitsInOrder([
+      isInstanceOf<ArgumentError>(), emitsDone
+    ]));
+   });
 }
+
+
+
 

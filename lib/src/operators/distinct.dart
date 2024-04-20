@@ -19,14 +19,14 @@ class Distinct<K, T> {
     return flow((collector) async {
       dynamic previousKey;
 
-      await upstreamFlow.collect((value) async {
+      upstreamFlow.collectSafely((value) async {
         final key = keySelector(value);
 
         if ((previousKey == null) || (!equivalenceMethod(previousKey, key))) {
           previousKey = key;
           collector.emit(value);
         }
-      });
+      }).collectWith(collector);
     });
   }
 }

@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flow/flow.dart';
-import 'package:flow/src/retries.dart';
+import 'package:flow/src/extensions.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 main() {
@@ -18,7 +17,10 @@ main() {
         if (emission < 3) throw Exception('hello');
         collector.emit('B');
       }).onStart((_) => stopWatch.start()).retryWith((cause) {
-        return RetryPolicy.exponentialBackOff(baseDelay: 1000, maxAttempts: 6);
+        return RetryPolicy.exponentialBackOff(
+          baseDelay: 1000.milliseconds,
+          maxAttempts: 6,
+        );
       }).onCompletion((p0, p1) {
         stopWatch.stop();
         completer.complete(stopWatch.elapsedMilliseconds);
@@ -42,9 +44,9 @@ main() {
 
       final circuitBreaker = RetryPolicy.circuitBreaker(
           failureThreshold: 4,
-          resetTimeout: 500,
+          resetTimeout: 500.milliseconds,
           halfOpenThreshold: 2,
-          coolDownTime: (start: 200, end: 400)
+          coolDownTime: (start: 200.milliseconds, end: 400.milliseconds)
       );
 
       const totalNoOfEmission = 7;
@@ -72,12 +74,26 @@ main() {
         inInclusiveRange(700, 900)
       ])));
     });
+
+    test('Max attempts limit is respected', () async {
+      const maxAttempts = 5;
+      final policy = RetryPolicy.circuitBreaker(maxAttempts: maxAttempts);
+      bool shouldRetry = true;
+      int attempts = 0;
+
+      while (shouldRetry) {
+        attempts++;
+        shouldRetry = await policy.retry(attempts);
+      }
+
+      expect(attempts, equals(maxAttempts));
+    });
   });
 
   group('FixedIntervalRetryPolicy Tests', () {
     test('Retry respects fixed delay', () async {
       const maxAttempts = 5;
-      const delay = 3000;
+      final delay = 3000.milliseconds;
       final policy = RetryPolicy.fixedInterval(delay: delay, maxAttempts: maxAttempts); // Using shorter delays for tests
       final stopwatch = Stopwatch()..start();
 
@@ -87,7 +103,7 @@ main() {
 
       // Check that the elapsed time is at least the specified delay.
       // In a real test, you might mock the delay or abstract time to avoid waiting.
-      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(delay));
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(delay.inMilliseconds));
     });
 
     test('Max attempts limit is respected', () async {
@@ -109,7 +125,7 @@ main() {
   group('DecorrelatedJitterRetryPolicy Tests', () {
     test('Initial retry delay is baseDelay', () async {
 
-      const baseDelay = 2000;
+      final baseDelay = 2000.milliseconds;
 
       final policy = RetryPolicy.decorrelatedJitter(baseDelay: baseDelay);
       final stopwatch = Stopwatch()..start();
@@ -119,7 +135,7 @@ main() {
       stopwatch.stop();
 
       // The first delay should be at least baseDelay.
-      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(baseDelay));
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(baseDelay.inMilliseconds));
     });
 
     test('Max attempts limit is respected', () async {
@@ -135,5 +151,69 @@ main() {
 
       expect(attempts, equals(maxAttempts));
     });
+  });
+
+  group('Random Backoff Policy', () {
+    test('Test that random backoff policy delay is within expected range', () async {
+
+      int emission = 0;
+      final completer = Completer();
+      final stopWatch = Stopwatch();
+
+      final fl = flow((collector) {
+        emission++;
+        collector.emit('A');
+        if (emission < 2) throw Exception('hello');
+        collector.emit('B');
+      }).onStart((_) => stopWatch.start()).retryWith((cause) {
+        return RetryPolicy.randomisedBackoff(
+          baseDelay: 1000.milliseconds,
+          maxAttempts: 6,
+          maxDelay: 1500.milliseconds,
+        );
+      }).onCompletion((p0, p1) {
+        stopWatch.stop();
+        completer.complete(stopWatch.elapsedMilliseconds);
+      });
+
+      expect(fl.asStream(), emitsInOrder([
+        'A', 'A', 'B', emitsDone
+      ]));
+
+      expectLater(completer.future, completion(inInclusiveRange(1000, 1500)));
+    });
+
+  });
+
+
+  group('Linear Backoff Policy Tests', () {
+    test('Test that linear backoff policy delays for the right amount of time', () async {
+
+      int emission = 0;
+      final completer = Completer();
+      final stopWatch = Stopwatch();
+
+      final fl = flow((collector) {
+        emission++;
+        collector.emit('A');
+        if (emission < 4) throw Exception('hello');
+        collector.emit('B');
+      }).onStart((_) => stopWatch.start()).retryWith((cause) {
+        return RetryPolicy.linearBackoff(
+          baseDelay: 1000.milliseconds,
+          maxDelay: 4000.milliseconds,
+        );
+      }).onCompletion((p0, p1) {
+        stopWatch.stop();
+        completer.complete(stopWatch.elapsedMilliseconds);
+      });
+
+      expect(fl.asStream(), emitsInOrder([
+        'A', 'A', 'A', 'A', 'B', emitsDone
+      ]));
+
+      expectLater(completer.future, completion(inInclusiveRange(2900, 3100)));
+    });
+
   });
 }

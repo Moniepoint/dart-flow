@@ -9,6 +9,7 @@
   * Added `distinctUntilChanged(KeySelector<K, T>, EquivalenceMethod<K>)`: which provides a mechanism to filter out subsequent repetitions of the same values within a flow. see also `distinctUntilChangedBy`.
   * Added `cache(CacheFlow<T>, CacheStrategy<T>)`: to create a new Flow that could provide values from the cache or reads directly from the original flow depending on the caching strategy. See Caching Support.
   * Added `retryWith(RetryPolicy Function(Exception cause) action)` method to Flow for flexible retry strategies based on custom retry policies.
+  * Added `timeout(Duration)` Extends a flow with a timeout mechanism
 * **Caching Support:**
   * `CacheFlow<T>`: Represents a data source or storage mechanism for caching values of type `T`.
   * **Predefined Cache Strategies:** This release introduces several concrete implementations of the `CacheStrategy<T>` interface, offering various cache invalidation and retrieval behaviors:
