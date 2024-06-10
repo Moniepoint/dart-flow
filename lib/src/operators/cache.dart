@@ -152,7 +152,7 @@ class FetchOrElseCache<T> implements CacheStrategy<T> {
     try {
       await originalFlow.onEmpty((_) => readFromCache()).collect((value) async {
         collector.emit(value);
-        cacheFlow.write(value);
+        await cacheFlow.write(value);
       });
     } catch (e) {
       combinedFlowException.add(e.toException());
