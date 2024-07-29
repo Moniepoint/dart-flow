@@ -303,6 +303,29 @@ void main() {
       isInstanceOf<ArgumentError>(), emitsDone
     ]));
    });
+
+
+  test('test that we can convert a flow to future using asFuture', () {
+    final fl = flow((collector) {
+      collector.emit('Something');
+    });
+
+    final future = fl.asFuture();
+
+    expectLater(future, completion('Something'));
+  });
+
+  test('test that when a flow is converted to future and an error is thrown the future also throws', () async {
+    final fl = flow((collector) {
+      collector.emit('Something');
+    }).onEach((a) => throw Exception('Error1'));
+
+    try {
+      await fl.asFuture();
+    } catch(e) {
+      expect(e.toString(), contains('Error1'));
+    }
+  });
 }
 
 
