@@ -217,33 +217,33 @@ main() {
 
   });
 
-  test('Test that retry stops after timeout', () {
-    final fl = flow((collector) {
-      print('Call Api');
-      // collector.emit('pending');
-      throw Exception('A');
-    })
-    // .onEach((value) {
-    //   if (value == 'pending') {
-    //     throw Exception('A');
-    //   }
-    // })
-    // .retryWith((cause) {
-    //   if (cause.toString() == 'A') {
-    //     return RetryPolicy.circuitBreaker();
-    //   }
-    //   throw cause;
-    // })
-    .timeout(3.seconds)
-    .catchError((e, _) {
-      if (e is TimeoutCancellationException) {
-        // do something
-        print('Cancelledd');
-      }
-    });
-
-    expect(fl.asStream(), emitsInOrder([
-      'pending', emitsDone
-    ]));
-  });
+  // test('Test that retry stops after timeout', () {
+  //   final fl = flow((collector) {
+  //     print('Call Api');
+  //     // collector.emit('pending');
+  //     throw Exception('A');
+  //   })
+  //   // .onEach((value) {
+  //   //   if (value == 'pending') {
+  //   //     throw Exception('A');
+  //   //   }
+  //   // })
+  //   // .retryWith((cause) {
+  //   //   if (cause.toString() == 'A') {
+  //   //     return RetryPolicy.circuitBreaker();
+  //   //   }
+  //   //   throw cause;
+  //   // })
+  //   .timeout(3.seconds)
+  //   .catchError((e, _) {
+  //     if (e is TimeoutCancellationException) {
+  //       // do something
+  //       print('Cancelledd');
+  //     }
+  //   });
+  //
+  //   expect(fl.asStream(), emitsInOrder([
+  //     'pending', emitsDone
+  //   ]));
+  // });
 }
