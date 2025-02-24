@@ -7,6 +7,9 @@ class CancellationException implements Exception {
 class FlowException implements Exception {
   final Object? cause;
   FlowException(this.cause);
+
+  @override
+  String toString() => "FlowException($cause)";
 }
 
 class CombinedFlowException implements Exception {
