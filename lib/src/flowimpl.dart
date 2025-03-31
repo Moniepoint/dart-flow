@@ -317,11 +317,15 @@ class CombineLatestFlow<R> extends AbstractFlow<R> {
 ///
 /// Example:
 /// ```dart
-/// final flow1 = flowOf([1, 2, 3]).delay(Duration(days: 1));
-/// final flow2 = flowOf([4, 5, 6]).delay(Duration(days: 2)); 
-/// final flow3 = flowOf([7, 8, 9]).delay(Duration(seconds: 3));
-/// final race = RaceFlow([flow1, flow2, flow3]);
-/// race.collect(print); // prints 7, 8, 9
+///  final flow1 = flow<String>((collector) async {
+///  await Future.delayed(const Duration(milliseconds: 200));
+///  collector.emit("A");
+///  });
+/// final flow2 = flow<String>((collector) async {
+///    collector.emit("B");
+///  });
+/// final race = RaceFlow([flow1, flow2]);
+/// race.collect(print); // prints "B"
 /// ```
 class RaceFlow<T> extends AbstractFlow<T> {
   /// The source Flows to race
