@@ -302,9 +302,65 @@ void main() {
     expect(caseThree.asStream(), emitsInOrder([
       isInstanceOf<ArgumentError>(), emitsDone
     ]));
-   });
+  });
+
+  group("Flow Combination Tests", () {
+    test('MergeFlow should emit all values from multiple flows in order', () async {
+      final flow1 = flow<int>((collector) async {
+        collector.emit(1);
+        collector.emit(2);
+      });
+      
+      final flow2 = flow<int>((collector) async {
+        collector.emit(3);
+        collector.emit(4);
+      });
+
+      final mergeFlow = Flow.merge<dynamic>([flow1, flow2]);
+      expect(mergeFlow.asStream(), emitsInOrder([1, 2, 3, 4, emitsDone]));
+    });
+
+    test('CombineLatestFlow should combine latest values from all flows', () async {
+      final flow1 = flow<String>((collector) async {
+        collector.emit("A");
+      });
+      
+      final flow2 = flow<int>((collector) async {
+        collector.emit(1);
+      });
+
+      final combineFlow = Flow.combineLatest<String>(
+        [flow1, flow2],
+        (values) => "${values[0]}-${values[1]}"
+      );
+
+      expect(combineFlow.asStream(), 
+        emitsInOrder(["A-1", emitsDone]));
+    });
+
+    test('RaceFlow should only emit values from the first flow to emit', () async {
+      final flow1 = flow<String>((collector) async {
+        await Future.delayed(const Duration(milliseconds: 200));
+        collector.emit("A");
+      });
+      
+      final flow2 = flow<String>((collector) async {
+        collector.emit("B");
+      });
+
+      final raceFlow = Flow.race([flow1, flow2]);
+      expect(raceFlow.asStream(), emitsInOrder(["B", emitsDone]));
+    });
+
+    test('startWith should emit the provided value before the flow values', () async {
+    final fl = flow<String>((collector) {
+      collector.emit("A");
+      collector.emit("B");
+      collector.emit("C");
+    }).startWith("START");
+
+    expect(fl.asStream(), emitsInOrder(['START', 'A', 'B', 'C', emitsDone]));
+  });
+  });
+
 }
-
-
-
-
