@@ -49,7 +49,7 @@ class Timeout<T> extends AbstractFlow<T> {
   ///
   /// The [duration] parameter specifies the maximum duration for the collection
   /// process.
-  Timeout(this.upstreamFlow, this.duration);
+  Timeout(this.upstreamFlow, this.duration) : super();
 
   void registerTimer() {
     if (completer.isCompleted) return;
@@ -80,6 +80,8 @@ class Timeout<T> extends AbstractFlow<T> {
       }
     }).collectWith(collector).done(() {
       if (!completer.isCompleted) completer.complete();
+    }).tryCatch((cause) {
+      collector.addError(cause);
     });
 
     try {

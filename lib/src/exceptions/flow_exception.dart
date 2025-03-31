@@ -17,6 +17,17 @@ class CombinedFlowException implements Exception {
     errors.add(exception);
   }
 
+  /// Safely retrieves an exception of type T from the errors list.
+  /// If `T` is not found, returns `null`.
+  T? get<T>() {
+    for (var error in errors) {
+      if (error is T) {
+        return error;
+      }
+    }
+    return null;
+  }
+
   @override
   String toString() {
     return 'CombinedFlowException(${errors.join(',')})';

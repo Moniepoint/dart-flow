@@ -297,6 +297,24 @@ main() {
       2, emitsDone
     ]));
   });
+
+  test(
+      'should retrieve the first error '
+      'that matches specified type T', () {
+    final fl = flow((collector) {
+      throw CombinedFlowException([
+        FlowException(Exception('test exception')),
+        TimeoutCancellationException(1.seconds),
+      ]);
+    });
+
+    expect(
+        fl.asStream(),
+        emitsError(isA<CombinedFlowException>()
+            .having((a) => a.get<TimeoutCancellationException>(),
+            'MatchingType', isA<TimeoutCancellationException>()))
+    );
+  });
 }
 
 class TestCacheFlow<T> extends CacheFlow<T> {

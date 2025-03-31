@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flow/src/collectors/safe_collector.dart';
 import 'package:flow/src/operators/cache.dart';
 import 'package:flow/src/exceptions/flow_exception.dart';
 import 'package:flow/src/operators/timeout.dart';
@@ -20,6 +21,15 @@ extension FlowX<T> on Flow<T> {
   /// This allows you to use `Stream`-based operators and functionalities
   /// on your flow.
   Stream<T> asStream() => _FlowToStream(this);
+
+  /// Converts this flow into a `Future<T>`.
+  ///
+  /// This allows you to use `Flow`-based operators and functionalities
+  /// on your flow.
+  ///
+  /// The flow stops when the first value is emitted and returns that
+  /// as the future result
+  Future<T> asFuture() => _flowToFuture(this);
 
   /// Applies a transformation function to each element in the flow.
   ///
@@ -633,6 +643,16 @@ class _FlowToStream<T> extends Stream<T> {
         onError: onError, onDone: onDone, cancelOnError: cancelOnError);
     return _subscription!;
   }
+}
+
+Future<T> _flowToFuture<T>(Flow<T> flow) async {
+  final completer = Completer<T>();
+  SafeCollector? collector;
+  collector = flow.collectSafely((a) {
+    completer.complete(a);
+    collector?.onDone();
+  })..tryCatch((e) => completer.completeError(e));
+  return completer.future;
 }
 
 extension StreamX<T> on Stream<T> {
