@@ -67,7 +67,7 @@ abstract interface class Flow<T> {
   /// [flows] : A list of flows to merge into a single flow
   ///
   /// Returns a new flow that merges all the provided flows
-  static MergeFlow merge<T>(List<Flow<T>> flows) => MergeFlow(flows);
+  static Flow<T> merge<T>(List<Flow<T>> flows) => MergeFlow(flows);
 
   /// Combines the latest values from multiple flows into a single flow.
   /// Example:
@@ -83,7 +83,7 @@ abstract interface class Flow<T> {
   /// [combiner] : A function that transforms the latest values from all flows into a single value
   ///
   /// Returns a new flow that combines the latest values from all provided flows using the combiner function
-  static CombineLatestFlow combineLatest<T>(List<Flow> flows, Combiner combiner) => CombineLatestFlow(flows, combiner);
+  static Flow<T> combineLatest<T>(List<Flow<dynamic>> flows, Combiner<T> combiner) => CombineLatestFlow<T>(flows, combiner);
 
   /// Creates a race between multiple flows, emitting values only from the first flow to emit.
   /// Example:
@@ -97,7 +97,7 @@ abstract interface class Flow<T> {
   /// [flows] : A list of flows to race against each other
   ///
   /// Returns a new flow that emits values only from the first flow to emit
-  static Flow<T> race<T>(List<Flow<T>> flows) => RaceFlow(flows);
+  static Flow<T> race<T>(List<Flow<T>> flows) => RaceFlow<T>(flows);
 }
 
 abstract class AbstractFlow<T> extends Flow<T> {
