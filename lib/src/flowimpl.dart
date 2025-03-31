@@ -21,6 +21,7 @@ class ExperimentalFlowApi {
 /// in a structured pattern.
 @ExperimentalFlowApi()
 abstract interface class Flow<T> {
+  
   /// Creates an empty Flow instance.
   ///
   /// This constructor is the starting point for subclasses to implement
@@ -113,13 +114,19 @@ abstract class AbstractFlow<T> extends Flow<T> {
   void onListen() async {
     final taskPool = currentTaskPool();
     try {
-      taskPool?.registerTask(Task(ExecutionType.signalInvocation,
-          close: _dispose, invocationId: _controller.hashCode));
+      taskPool?.registerTask(Task(
+          ExecutionType.signalInvocation,
+          close: _dispose,
+          invocationId: _controller.hashCode
+      ));
       await invokeSafely(_flowCollector!);
     } catch (e) {
       _controller?.addError(e);
     } finally {
-      taskPool?.registerTask(Task(ExecutionType.signalClosure, invocationId: _controller.hashCode));
+      taskPool?.registerTask(Task(
+          ExecutionType.signalClosure,
+          invocationId: _controller.hashCode
+      ));
     }
   }
 
@@ -135,9 +142,9 @@ abstract class AbstractFlow<T> extends Flow<T> {
           .collectWith(_flowCollector!)
           .tryCatch((e) => completer.completeError(e))
           .done(() {
-        _flowCollector!.close();
-        if (!completer.isCompleted) completer.complete();
-      });
+            _flowCollector!.close();
+            if (!completer.isCompleted) completer.complete();
+          });
 
       return completer.future;
     }, zoneSpecification: context.config, zoneValues: {#flow.context: context});
@@ -168,7 +175,8 @@ abstract class AbstractFlow<T> extends Flow<T> {
       }
     }
 
-    _subscription = _controller?.stream.listen((value) => scheduleTask(collector(value)),
+    _subscription = _controller?.stream
+        .listen((value) => scheduleTask(collector(value)),
         cancelOnError: false,
         onError: (e, s) => scheduleTask(safeCollector.sendError(e, s)),
         onDone: () {
@@ -206,7 +214,7 @@ abstract class AbstractFlow<T> extends Flow<T> {
 final class SafeFlow<T> extends AbstractFlow<T> {
   final FutureOr<void> Function(FlowCollector<T>) block;
 
-  SafeFlow(this.block) : super();
+  SafeFlow(this.block): super();
 
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
