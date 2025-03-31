@@ -236,6 +236,7 @@ class MergeFlow<T> extends AbstractFlow<T> {
 
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
+    if(flows.isEmpty) return;
     bool hasError = false;
     for (int i = 0; i < flows.length; i++) {
       if (hasError) break;
@@ -280,6 +281,7 @@ class CombineLatestFlow<R> extends AbstractFlow<R> {
 
   @override
   Future<void> invokeSafely(FlowCollector<R> collector) async {
+    if(flows.isEmpty) return;
     final collectedValues = List<dynamic>.filled(flows.length, null);
     final isValueCollected = List<bool>.filled(flows.length, false);
     bool hasError = false;
