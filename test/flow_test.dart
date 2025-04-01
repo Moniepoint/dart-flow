@@ -304,52 +304,101 @@ void main() {
     ]));
   });
 
-  group("Flow Combination Tests", () {
-    test('MergeFlow should emit all values from multiple flows in order', () async {
-      final flow1 = flow<int>((collector) async {
-        collector.emit(1);
-        collector.emit(2);
-      });
-      
-      final flow2 = flow<int>((collector) async {
-        collector.emit(3);
-        collector.emit(4);
+   group("Combination Operators Tests", () {
+    group('MergeFlow ', () {
+      test('should emit all values from multiple flows in order', () async {
+        final flow1 = flow<int>((collector) async {
+          collector.emit(1);
+          collector.emit(2);
+        });
+        
+        final flow2 = flow<int>((collector) async {
+          collector.emit(3);
+          collector.emit(4);
+        });
+
+        final mergeFlow = Flow.merge<dynamic>([flow1, flow2]);
+        expect(mergeFlow.asStream(), emitsInOrder([1, 3, 2, 4, emitsDone]));
       });
 
-      final mergeFlow = Flow.merge<dynamic>([flow1, flow2]);
-      expect(mergeFlow.asStream(), emitsInOrder([1, 2, 3, 4, emitsDone]));
+      test('should emit error when any flow emits error', () async {
+        final flow1 = flow<int>((collector) async {
+          collector.addError(Exception("Error in flow1"));
+        });
+
+        final flow2 = flow<int>((collector) async {
+          collector.emit(2);
+        });
+
+        final mergeFlow = Flow.merge<int>([flow1, flow2]);
+        expect(mergeFlow.asStream(),  emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('Error in flow1') )));
+      });
     });
 
-    test('CombineLatestFlow should combine latest values from all flows', () async {
-      final flow1 = flow<String>((collector) async {
-        collector.emit("A");
-      });
-      
-      final flow2 = flow<int>((collector) async {
-        collector.emit(1);
+    group('CombineLatestFlow ', () {
+      test('should combine latest values from all flows', () async {
+        final flow1 = flow<String>((collector) async {
+          collector.emit("A");
+          collector.emit("B");
+          collector.emit("C");
+        });
+        
+        final flow2 = flow<int>((collector) async {
+          collector.emit(1);
+          collector.emit(2);
+          collector.emit(3);
+        });
+
+        final combineFlow = Flow.combineLatest<String>(
+          [flow1, flow2],
+          (values) => "${values[0]}-${values[1]}"
+        );
+
+        expect(combineFlow.asStream(), 
+          emitsInOrder(["A-1", "B-1", "B-2", "C-2", "C-3", emitsDone]));
       });
 
-      final combineFlow = Flow.combineLatest<String>(
-        [flow1, flow2],
-        (values) => "${values[0]}-${values[1]}"
-      );
+      test('should emit error when any of the flows emit error', () async {
+        final flow1 = flow<String>((collector) async {
+          collector.addError(Exception("ErrorMessage"));
+        });
+        
+        final flow2 = flow<String>((collector) async {
+          collector.emit("NeverValue");
+        });
 
-      expect(combineFlow.asStream(), 
-        emitsInOrder(["A-1", emitsDone]));
+        final raceFlow = Flow.combineLatest<String>([flow1, flow2], (values) => values.join());
+        expect(raceFlow.asStream(), emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('ErrorMessage'))));
+      });
     });
 
-    test('RaceFlow should only emit values from the first flow to emit', () async {
-      final flow1 = flow<String>((collector) async {
-        await Future.delayed(const Duration(milliseconds: 200));
-        collector.emit("A");
-      });
-      
-      final flow2 = flow<String>((collector) async {
-        collector.emit("B");
+    group('RaceFlow ', () {
+      test('should only emit values from the first flow to emit', () async {
+        final flow1 = flow<String>((collector) async {
+          await Future.delayed(const Duration(milliseconds: 200));
+          collector.emit("A");
+        });
+        
+        final flow2 = flow<String>((collector) async {
+          collector.emit("B");
+        });
+
+        final raceFlow = Flow.race([flow1, flow2]);
+        expect(raceFlow.asStream(), emitsInOrder(["B", emitsDone]));
       });
 
-      final raceFlow = Flow.race([flow1, flow2]);
-      expect(raceFlow.asStream(), emitsInOrder(["B", emitsDone]));
+      test('should emit error when any of the flows emit error', () async {
+        final flow1 = flow<String>((collector) async {
+          collector.addError(Exception("ErrorMessage"));
+        });
+        
+        final flow2 = flow<String>((collector) async {
+          collector.emit("NeverValue");
+        });
+
+        final raceFlow = Flow.race([flow1, flow2]);
+        expect(raceFlow.asStream(), emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('ErrorMessage'))));
+      });
     });
 
     test('startWith should emit the provided value before the flow values', () async {

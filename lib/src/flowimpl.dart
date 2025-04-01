@@ -244,18 +244,23 @@ class MergeFlow<T> extends AbstractFlow<T> {
 
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
-    if(flows.isEmpty) return;
+    if (flows.isEmpty) return;
     bool hasError = false;
-    for (int i = 0; i < flows.length; i++) {
-      if (hasError) break;
-      final flow = flows[i];
+    
+    final futures = flows.map((flow) async {
       await flow.catchError((cause, st) {
-        hasError = true;
-        collector.addError(cause);
+        if (!hasError) {
+          hasError = true;
+          collector.addError(cause);
+        }
       }).collect((value) {
-        collector.emit(value);
+        if (!hasError) {
+          collector.emit(value);
+        }
       });
-    }
+    });
+
+    await Future.wait(futures);
   }
 }
 
@@ -266,6 +271,7 @@ typedef Combiner<T> = T Function(List<dynamic> values);
 /// This Flow waits for all source Flows to emit at least one value before emitting any combined values.
 /// When any source Flow emits a new value, it combines the latest values from all Flows using the provided
 /// combiner function and emits the result.
+/// If any source Flow emits an error, collection stops and the error is propagated.
 ///
 /// Example:
 /// ```dart
@@ -289,31 +295,42 @@ class CombineLatestFlow<R> extends AbstractFlow<R> {
 
   @override
   Future<void> invokeSafely(FlowCollector<R> collector) async {
-    if(flows.isEmpty) return;
+    if (flows.isEmpty) return;
+    
     final collectedValues = List<dynamic>.filled(flows.length, null);
     final isValueCollected = List<bool>.filled(flows.length, false);
     bool hasError = false;
 
-    for (int i = 0; i < flows.length; i++) {
-      if (hasError) break;
-      final flow = flows[i];
+    final futures = flows.asMap().entries.map((entry) async {
+      if (hasError) return;
+      final index = entry.key;
+      final flow = entry.value;
+      
       await flow.catchError((cause, st) {
-        hasError = true;
-        collector.addError(cause);
+        if (!hasError) {
+          hasError = true;
+          collector.addError(cause);
+        }
       }).collect((value) {
-        collectedValues[i] = value;
-        isValueCollected[i] = true;
+       if (hasError) return;
+        
+        collectedValues[index] = value;
+        isValueCollected[index] = true;
+        
         if (isValueCollected.every((collected) => collected)) {
-          final values = List<dynamic>.from(collectedValues);
-            try {
-              final combinedValue = combiner(values);
-              collector.emit(combinedValue);
-            } catch (e, st) {
-              collector.addError(e, st);
-            }
+          try {
+            final values = List<dynamic>.from(collectedValues);
+            final combinedValue = combiner(values);
+            collector.emit(combinedValue);
+          } catch (e, st) {
+            hasError = true;
+            collector.addError(e, st);
+          }
         }
       });
-    }
+    });
+
+    await Future.wait(futures);
   }
 }
 
@@ -322,6 +339,7 @@ class CombineLatestFlow<R> extends AbstractFlow<R> {
 ///
 /// If the provided list of Flows is empty, the resulting Flow completes immediately
 /// without emitting any values.
+/// If any source Flow emits an error, collection stops and the error is propagated.
 ///
 /// Example:
 /// ```dart
@@ -347,25 +365,26 @@ class RaceFlow<T> extends AbstractFlow<T> {
     if (flows.isEmpty) return;
 
     bool hasWinner = false;
+    bool hasError = false;
     int? winnerIndex;
-    
-    final futures = flows.asMap().entries.map((entry) async {
-      if (hasWinner && entry.key != winnerIndex) return;
-      
-      await entry.value.catchError((cause, st) {
-        if (!hasWinner) {
-          collector.addError(cause);
-        }
-      }).collect((value) {
-        if (!hasWinner) {
-          hasWinner = true;
-          winnerIndex = entry.key;
-        }
-        
-        if (entry.key == winnerIndex) {
-          collector.emit(value);
-        }
-      });
+
+      final futures = flows.asMap().entries.map((entry) async {
+      final index = entry.key;
+      if (hasError || (hasWinner && index != winnerIndex)) return;
+        await entry.value.catchError((cause, _) {
+          if (!hasWinner) {
+            hasError = true;
+            collector.addError(cause);
+          }
+        }).collect((value) {
+          if (!hasError && !hasWinner) {
+            hasWinner = true;
+            winnerIndex = index;
+            collector.emit(value);
+          } else if (index == winnerIndex && !hasError) {
+            collector.emit(value);
+          }
+        });
     }).toList();
 
     await Future.wait(futures);
