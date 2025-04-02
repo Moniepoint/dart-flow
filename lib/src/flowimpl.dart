@@ -67,7 +67,7 @@ abstract interface class Flow<T> {
   /// [flows] : A list of flows to merge into a single flow
   ///
   /// Returns a new flow that merges all the provided flows
-  static MergeFlow merge<T>(List<Flow<T>> flows) => MergeFlow(flows);
+  static Flow<T> merge<T>(List<Flow<T>> flows) => MergeFlow<T>(flows);
 
   /// Combines the latest values from multiple flows into a single flow.
   /// Example:
@@ -83,21 +83,26 @@ abstract interface class Flow<T> {
   /// [combiner] : A function that transforms the latest values from all flows into a single value
   ///
   /// Returns a new flow that combines the latest values from all provided flows using the combiner function
-  static CombineLatestFlow combineLatest<T>(List<Flow> flows, Combiner combiner) => CombineLatestFlow(flows, combiner);
+  static Flow<T> combineLatest<T>(List<Flow<dynamic>> flows, Combiner combiner) => CombineLatestFlow<T>(flows, combiner);
 
-  /// Creates a race between multiple flows, emitting values only from the first flow to emit.
+  /// Creates a race between multiple flows, emitting value only from the first flow to emit.
   /// Example:
   /// ```dart
-  /// final flow1 = flowOf([1, 2, 3]).delay(Duration(seconds: 2));
-  /// final flow2 = flowOf([4, 5, 6]).delay(Duration(seconds: 1));
-  /// final raced = Flow.race([flow1, flow2]);
-  /// raced.collect(print); // prints 4, 5, 6 since flow2 emits first
+  ///  final flow1 = flow<String>((collector) async {
+  ///  await Future.delayed(const Duration(milliseconds: 200));
+  ///  collector.emit("A");
+  ///  });
+  /// final flow2 = flow<String>((collector) async {
+  ///    collector.emit("B");
+  ///  });
+  /// final race = RaceFlow([flow1, flow2]);
+  /// race.collect(print); // prints "B"
   /// ```
   ///
   /// [flows] : A list of flows to race against each other
   ///
   /// Returns a new flow that emits values only from the first flow to emit
-  static Flow<T> race<T>(List<Flow<T>> flows) => RaceFlow(flows);
+  static Flow<T> race<T>(List<Flow<T>> flows) => RaceFlow<T>(flows);
 }
 
 abstract class AbstractFlow<T> extends Flow<T> {
