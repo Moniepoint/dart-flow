@@ -83,7 +83,7 @@ abstract interface class Flow<T> {
   /// [combiner] : A function that transforms the latest values from all flows into a single value
   ///
   /// Returns a new flow that combines the latest values from all provided flows using the combiner function
-  static Flow<T> combineLatest<T>(List<Flow<dynamic>> flows, Combiner combiner) => CombineLatestFlow<T>(flows, combiner);
+  static Flow<T> combineLatest<T>(List<Flow<dynamic>> flows, Combiner<T> combiner) => CombineLatestFlow<T>(flows, combiner);
 
   /// Creates a race between multiple flows, emitting value only from the first flow to emit.
   /// Example:
@@ -288,18 +288,18 @@ typedef Combiner<T> = T Function(List<dynamic> values);
 /// ```
 ///
 /// [R] The type of values emitted by this Flow after combining
-class CombineLatestFlow<R> extends AbstractFlow<R> {
+class CombineLatestFlow<T> extends AbstractFlow<T> {
   /// The source Flows to combine values from
   final List<Flow<dynamic>> flows;
 
   /// Function that combines the latest values from all Flows into a single value
-  final Combiner combiner;
+  final Combiner<T> combiner;
 
   /// Creates a CombineLatestFlow that combines values from the given [flows] using the [combiner] function
   CombineLatestFlow(this.flows, this.combiner);
 
   @override
-  Future<void> invokeSafely(FlowCollector<R> collector) async {
+  Future<void> invokeSafely(FlowCollector<T> collector) async {
     if (flows.isEmpty) return;
     
     final collectedValues = List<dynamic>.filled(flows.length, null);
