@@ -541,6 +541,73 @@ extension FlowX<T> on Flow<T> {
     });
   }
 
+  /// Merges multiple flows into a single flow that emits items in the order they are received.
+  /// Example:
+  /// ```dart
+  /// final flow1 = flowOf([1, 2, 3]);
+  /// final flow2 = flowOf([4, 5, 6]); 
+  /// final merged = flow1.mergeWith([flow2]);
+  /// merged.collect(print); // prints numbers as they arrive from either flow
+  /// ```
+  ///
+  /// [flows] : An iterable of flows to merge with this flow
+  ///
+  /// Returns a new flow that merges this flow with the provided flows
+  Flow<T> mergeWith(Iterable<Flow<T>> flows) {
+    return MergeFlow<T>([this, ...flows]);
+  }
+
+  /// Combines the latest values from multiple flows into a single flow.
+  /// Example:
+  /// ```dart
+  /// final flow1 = flowOf([1, 2, 3]);
+  /// final flow2 = flowOf(['a', 'b', 'c']);
+  /// final combined = flow1.combineLatestWith([flow2]);
+  /// combined.collect(print); // prints lists containing latest values from both flows
+  /// ```
+  ///
+  /// [flows] : An iterable of flows to combine with this flow
+  /// [combiner] : Optional function to transform the combined values. If not provided,
+  ///             values will be emitted as a List.
+  ///
+  /// Returns a new flow that combines the latest values from this flow and the provided flows
+  Flow<R> combineLatestWith<R>(Iterable<Flow> flows, Combiner<R> combiner) {
+    return CombineLatestFlow<R>([this, ...flows], combiner);
+  }
+
+  /// Creates a new flow that emits values from the first flow that emits a value.
+  /// Example:
+  /// ```dart
+  /// final flow1 = flowOf([1, 2, 3]);
+  /// final flow2 = flowOf([4, 5, 6]);
+  /// final raced = flow1.raceWith([flow2]); 
+  /// raced.collect(print); // prints values from whichever flow emits first
+  /// ```
+  ///
+  /// [flows] : An iterable of flows to race against this flow
+  ///
+  /// Returns a new flow that emits values from the first flow to emit
+  Flow<T> raceWith(Iterable<Flow<T>> flows) {
+    return RaceFlow<T>([this, ...flows]);
+  }
+
+  /// Creates a new flow that emits the specified value before emitting values from this flow.
+  /// Example:
+  /// ```dart
+  /// final flow = flowOf([1, 2, 3]);
+  /// final prefixed = flow.startWith(0);
+  /// prefixed.collect(print); // prints 0, 1, 2, 3
+  /// ```
+  ///
+  /// [values] : The values to emit before starting this flow
+  ///
+  /// Returns a new flow that first emits the provided values and then emits values from this flow
+  Flow<T> startWith(T value) {
+    return flow<T>((collector) async {
+        collector.emit(value);
+      await collect(collector.emit);
+    });
+  }
 }
 
 ///
