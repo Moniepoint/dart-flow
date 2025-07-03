@@ -306,7 +306,7 @@ void main() {
 
    group("Combination Operators Tests", () {
     group('MergeFlow ', () {
-      test('should emit all values from multiple flows in order', () async {
+      test('should emit all values from multiple flows', () async {
         final flow1 = flow<int>((collector) async {
           collector.emit(1);
           collector.emit(2);
@@ -321,9 +321,25 @@ void main() {
         expect(mergeFlow.asStream(), emitsInOrder([1, 3, 2, 4, emitsDone]));
       });
 
-      test('should emit error when any flow emits error', () async {
+      test('should emit only values from flows without an error and do nothing when a flow explicitly handles its error', () async {
         final flow1 = flow<int>((collector) async {
-          collector.addError(Exception("Error in flow1"));
+          throw Exception("Error message");
+        }).catchError((_, __){
+        //Do nothing
+        returnsNormally;    
+       });
+        
+        final flow2 = flow<String>((collector) async {
+          collector.emit("Only value");
+        });
+
+        final mergeFlow = Flow.merge<dynamic>([flow1, flow2]);
+        expect(mergeFlow.asStream(), emitsInOrder(['Only value', emitsDone]));
+      });
+
+      test('should emit error when any flow emits error and not handled', () async {
+        final flow1 = flow<int>((collector) async {
+          throw Exception("Error in flow1");
         });
 
         final flow2 = flow<int>((collector) async {
@@ -358,17 +374,33 @@ void main() {
           emitsInOrder(["A-1", "B-1", "B-2", "C-2", "C-3", emitsDone]));
       });
 
-      test('should emit error when any of the flows emit error', () async {
+      test('should emit error when any of the flows emits an error and no flow handles it error explicitly', () async {
         final flow1 = flow<String>((collector) async {
-          collector.addError(Exception("ErrorMessage"));
+          throw Exception("ErrorMessage");
         });
         
         final flow2 = flow<String>((collector) async {
           collector.emit("NeverValue");
         });
 
-        final raceFlow = Flow.combineLatest<String>([flow1, flow2], (values) => values.join());
-        expect(raceFlow.asStream(), emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('ErrorMessage'))));
+        final combineLatestFlow = Flow.combineLatest<String>([flow1, flow2], (values) => values.join());
+        expect(combineLatestFlow.asStream(), emitsError(isA<Exception>().having((e) => e.toString(), 'message', contains('ErrorMessage'))));
+      });
+
+
+      test('should emit only default value for flows whose errors are handles explicitly', () async {
+        final flow1 = flow<String>((collector) async {
+          throw Exception("ErrorMessage");
+        }).catchError((value, collector){
+          collector.emit("DefaultValue");
+        });
+        
+        final flow2 = flow<String>((collector) async {
+          collector.emit("OtherValue");
+        });
+
+        final combineLatestFlow = Flow.combineLatest<String>([flow1, flow2], (values) => '${values[0]}-${values[1]}');
+        expect(combineLatestFlow.asStream(),  emitsInOrder(['DefaultValue-OtherValue', emitsDone]));
       });
     });
 
@@ -387,12 +419,13 @@ void main() {
         expect(raceFlow.asStream(), emitsInOrder(["B", emitsDone]));
       });
 
-      test('should emit error when any of the flows emit error', () async {
+      test('should emit error when any of the flows throws an error', () async {
         final flow1 = flow<String>((collector) async {
-          collector.addError(Exception("ErrorMessage"));
+          throw Exception("ErrorMessage");
         });
         
         final flow2 = flow<String>((collector) async {
+          await Future.delayed(const Duration(milliseconds: 100));
           collector.emit("NeverValue");
         });
 

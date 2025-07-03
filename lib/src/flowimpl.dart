@@ -250,19 +250,21 @@ class MergeFlow<T> extends AbstractFlow<T> {
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
     if (flows.isEmpty) return;
+
     bool hasError = false;
-    
+
     final futures = flows.map((flow) async {
-      await flow.catchError((cause, st) {
+      try {
+        await flow.collect((value) {
+          if(hasError) return;
+          collector.emit(value);
+        });
+      } catch (e, st) {
         if (!hasError) {
           hasError = true;
-          collector.addError(cause);
+          collector.addError(e, st);
         }
-      }).collect((value) {
-        if (!hasError) {
-          collector.emit(value);
-        }
-      });
+      }
     });
 
     await Future.wait(futures);
@@ -308,16 +310,14 @@ class CombineLatestFlow<T> extends AbstractFlow<T> {
 
     final futures = flows.asMap().entries.map((entry) async {
       if (hasError) return;
+      
       final index = entry.key;
       final flow = entry.value;
       
-      await flow.catchError((cause, st) {
-        if (!hasError) {
-          hasError = true;
-          collector.addError(cause);
-        }
-      }).collect((value) {
-       if (hasError) return;
+      try {
+        await flow.collect((value) {
+        
+        if (hasError) return;
         
         collectedValues[index] = value;
         isValueCollected[index] = true;
@@ -332,10 +332,18 @@ class CombineLatestFlow<T> extends AbstractFlow<T> {
             collector.addError(e, st);
           }
         }
+
       });
+    
+    } catch (e, st) {
+      if(!hasError) {
+          hasError = true;
+          collector.addError(e, st);
+      }
+    }
     });
 
-    await Future.wait(futures);
+   await Future.wait(futures);
   }
 }
 
@@ -375,13 +383,11 @@ class RaceFlow<T> extends AbstractFlow<T> {
 
       final futures = flows.asMap().entries.map((entry) async {
       final index = entry.key;
+      
       if (hasError || (hasWinner && index != winnerIndex)) return;
-        await entry.value.catchError((cause, _) {
-          if (!hasWinner) {
-            hasError = true;
-            collector.addError(cause);
-          }
-        }).collect((value) {
+
+      try {
+        await entry.value.collect((value) {
           if (!hasError && !hasWinner) {
             hasWinner = true;
             winnerIndex = index;
@@ -390,7 +396,13 @@ class RaceFlow<T> extends AbstractFlow<T> {
             collector.emit(value);
           }
         });
-    }).toList();
+      } catch (e, st) {
+          if (!hasWinner) {
+            hasError = true;
+            collector.addError(e, st);
+          }
+      }
+    });
 
     await Future.wait(futures);
   }
