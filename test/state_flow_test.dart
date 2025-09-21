@@ -140,42 +140,40 @@ void main() {
         expect(collectedValues2, [0, 1]);
       });
 
-      // test('collection stops if lambda throws error', () async {
-      //   final collectedValues = <int>[];
-      //   final error = Exception('Collector error');
-      //   bool errorCaught = false;
-      //
-      //   FutureOr<void> collectionProcessFuture = stateFlow.collect((value) {
-      //     collectedValues.add(value);
-      //     if (value == 1) {
-      //       throw error;
-      //     }
-      //   });
-      //
-      //   await Future.delayed(Duration.zero);
-      //
-      //   stateFlow.value = 1;
-      //
-      //   try {
-      //     await collectionProcessFuture;
-      //     fail("stateFlow.collect() should have completed with an error, but it completed normally.");
-      //   } catch (e) {
-      //     if (e == error) {
-      //       errorCaught = true;
-      //     } else {
-      //       rethrow;
-      //     }
-      //   }
-      //
-      //   expect(errorCaught, isTrue,
-      //       reason: "The specific error was not caught.");
-      //
-      //   stateFlow.value = 2;
-      //   await Future.delayed(Duration.zero);
-      //
-      //   expect(collectedValues, [0, 1],
-      //       reason: "Collection should stop after error.");
-      // });
+      test('collection stops if lambda throws error', () async {
+        final collectedValues = <int>[];
+        final error = Exception('Collector error');
+        bool errorCaught = false;
+
+        FutureOr<void> collectionProcessFuture = stateFlow.collect((value) {
+          collectedValues.add(value);
+          if (value == 1) {
+            throw error;
+          }
+        });
+
+        await Future.delayed(Duration.zero);
+
+        stateFlow.value = 1;
+
+        try {
+          await collectionProcessFuture;
+          fail("stateFlow.collect() should have completed with an error, but it completed normally.");
+        } catch (e) {
+          if (e == error) {
+            errorCaught = true;
+          } else {
+            rethrow;
+          }
+        }
+
+        expect(errorCaught, isTrue, reason: "The specific error was not caught.");
+
+        stateFlow.value = 2;
+        await Future.delayed(Duration.zero);
+
+        expect(collectedValues, [0, 1], reason: "Collection should stop after error.");
+      });
     });
 
     group('collectSafely()', () {
