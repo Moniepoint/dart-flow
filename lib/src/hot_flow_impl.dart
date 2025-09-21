@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:collection'; // Added for ListQueue
+
 import 'package:flow/src/collectors/safe_collector.dart';
 import 'package:flow/src/flowimpl.dart';
 import 'package:flow/src/task_pool_executor.dart'; 
@@ -71,8 +73,6 @@ abstract class AbstractHotFlow<T> implements Flow<T> {
     final context = currentTaskPool() ?? TaskPoolExecutor();
     final completer = Completer<void>();
 
-    // Note: The original runZonedGuarded is replaced by a simpler runZoned call based on previous discussions.
-    // The error handling is now primarily managed by the SafeCollector and the completer's future.
     return runZoned(() {
       context.registerTask(Task(ExecutionType.signalCollection));
 
@@ -80,7 +80,7 @@ abstract class AbstractHotFlow<T> implements Flow<T> {
 
       safeCollector.tryCatch((e, s) {
         if (!completer.isCompleted) {
-          completer.completeError(e, s is StackTrace ? s : null);
+          completer.completeError(e, s);
         }
       }).done(() {
         if (!completer.isCompleted) {
@@ -285,5 +285,72 @@ class StateFlow<T> extends AbstractHotFlow<T> {
   FutureOr<void> emitInitialValues(FutureOr<void> Function(T value) collector) async {
     // Ensure that the collector lambda itself is awaited if it's async
     await collector(_currentValue);
+  }
+}
+
+/// A hot [Flow] that broadcasts emitted values to all active collectors.
+///
+/// A `SharedFlow` can be configured with a [replay] cache, allowing new
+/// collectors to receive a specified number of the most recently emitted values.
+/// Unlike [StateFlow], it does not have a concept of a single "current state"
+/// via a `.value` property but rather broadcasts a stream of events.
+///
+/// Emitted values are delivered to all currently active collectors. If there are
+/// no collectors, emitted values are typically dropped unless a positive [replay]
+/// count is configured, in which case they are stored in the replay cache.
+class SharedFlow<T> extends AbstractHotFlow<T> {
+  /// A buffer to store values for replay to new collectors.
+  final ListQueue<T> _replayCache;
+
+  /// The maximum number of values to store in the replay cache.
+  final int _replay;
+
+  /// Creates a [SharedFlow].
+  ///
+  /// - [replay]: The number of most recent values to cache and emit to new
+  ///   collectors. Defaults to 0 (no replay). Must be non-negative.
+  SharedFlow({int replay = 0})
+      : assert(replay >= 0, 'replay cannot be negative'),
+        _replay = replay,
+        _replayCache = ListQueue<T>(),
+        super();
+
+  /// Emits a [value] to all active collectors and updates the replay cache.
+  ///
+  /// If the flow is closed, this method does nothing.
+  /// If [replay] is greater than 0, the [value] is added to the replay cache,
+  /// potentially evicting older values if the cache size is exceeded.
+  /// The value is then dispatched to all current collectors via [dispatchValue].
+  void emit(T value) {
+    if (isClosed) return;
+
+    if (_replay > 0) {
+      if (_replayCache.length >= _replay && _replayCache.isNotEmpty) {
+        _replayCache.removeFirst(); // Maintain cache size
+      }
+      _replayCache.addLast(value);
+    }
+    dispatchValue(value);
+  }
+
+  /// Emits values from the replay cache to a new [collector].
+  ///
+  /// This method is called by [collectSafely] to provide any cached initial
+  /// values to a new collector before it starts receiving ongoing updates.
+  @override
+  @protected
+  FutureOr<void> emitInitialValues(FutureOr<void> Function(T value) collector) async {
+    // Iterate over a snapshot of the replay cache. This prevents issues if the
+    // collector lambda were to re-entrantly modify the _replayCache during iteration.
+    final List<T> itemsToReplay = List<T>.from(_replayCache, growable: false);
+
+    for (final T valueToReplay in itemsToReplay) {
+      // If the flow was closed (e.g., by an external call to `close()`)
+      // while replaying previous items, stop replaying.
+      if (isClosed) {
+        break;
+      }
+      await collector(valueToReplay);
+    }
   }
 }
