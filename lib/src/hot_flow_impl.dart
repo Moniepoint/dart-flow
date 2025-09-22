@@ -66,9 +66,6 @@ abstract class AbstractHotFlow<T> implements Flow<T> {
   /// by the flow.
   @override
   FutureOr<void> collect(FutureOr<void> Function(T value) collector) {
-    if (_isClosed) {
-      return Future.value();
-    }
 
     final context = currentTaskPool() ?? TaskPoolExecutor();
     final completer = Completer<void>();
@@ -117,72 +114,124 @@ abstract class AbstractHotFlow<T> implements Flow<T> {
   SafeCollector collectSafely(FutureOr<void> Function(T value) collector) {
     final safeCollector = SafeCollector();
     StreamSubscription<T>? subscription;
-    bool isCollectionProcessActive = true;
+    bool isThisCollectionAttemptActive = true;
 
-    void cancelSubscriptionAndMarkDone() {
-      if (isCollectionProcessActive) {
-        isCollectionProcessActive = false;
+    void cancelSubscriptionAndFinalizeCollection() {
+      if (isThisCollectionAttemptActive) {
+        isThisCollectionAttemptActive = false;
         subscription?.cancel();
         safeCollector.onDone();
       }
     }
 
     if (_isClosed) {
-      Future.microtask(() => safeCollector.onDone());
+      Future.microtask(() async {
+        if (!isThisCollectionAttemptActive) return;
+
+        try {
+          // Attempt to emit replayed values.
+          await emitInitialValues((T initialValue) async {
+            if (!isThisCollectionAttemptActive) return;
+            try {
+              await collector(initialValue);
+            } catch (e, s) {
+              if (isThisCollectionAttemptActive) {
+                safeCollector.sendError(e, s);
+                cancelSubscriptionAndFinalizeCollection(); 
+              }
+            }
+          });
+        } catch (e, s) {
+          if (isThisCollectionAttemptActive) {
+            safeCollector.sendError(e, s);
+            cancelSubscriptionAndFinalizeCollection();
+          }
+        } finally {
+          // Ensure this collection is marked done after attempting replay on an already closed flow.
+          if (isThisCollectionAttemptActive) {
+             safeCollector.onDone();
+          }
+        }
+      });
       return safeCollector;
     }
 
     Future.microtask(() async {
-      if (!isCollectionProcessActive || _isClosed) {
-        if (isCollectionProcessActive) safeCollector.onDone();
-        isCollectionProcessActive = false;
+      if (_isClosed) {
+        if (isThisCollectionAttemptActive) {
+          try {
+            await emitInitialValues((T initialValue) async {
+              if (!isThisCollectionAttemptActive) return;
+              try {
+                await collector(initialValue);
+              } catch (e, s) {
+                if (isThisCollectionAttemptActive) {
+                  safeCollector.sendError(e, s);
+                  cancelSubscriptionAndFinalizeCollection();
+                }
+              }
+            });
+          } catch (e, s) {
+            if (isThisCollectionAttemptActive) {
+              safeCollector.sendError(e, s);
+              cancelSubscriptionAndFinalizeCollection();
+            }
+          } finally {
+            if (isThisCollectionAttemptActive) {
+              safeCollector.onDone();
+            }
+          }
+        }
         return;
       }
 
+      if (!isThisCollectionAttemptActive) return;
+
       try {
         await emitInitialValues((T initialValue) async {
-          if (!isCollectionProcessActive) return;
+          if (!isThisCollectionAttemptActive) return;
           try {
             await collector(initialValue);
           } catch (e, s) {
-            if (isCollectionProcessActive) {
+            if (isThisCollectionAttemptActive) {
               safeCollector.sendError(e, s);
-              cancelSubscriptionAndMarkDone();
+              cancelSubscriptionAndFinalizeCollection();
             }
           }
         });
       } catch (e, s) {
-        if (isCollectionProcessActive) {
+        if (isThisCollectionAttemptActive) {
           safeCollector.sendError(e, s);
-          cancelSubscriptionAndMarkDone();
+          cancelSubscriptionAndFinalizeCollection();
         }
         return;
       }
 
-      if (!isCollectionProcessActive || _isClosed) {
-        if (isCollectionProcessActive) safeCollector.onDone();
-        isCollectionProcessActive = false;
+      if (!isThisCollectionAttemptActive || _isClosed) {
+        if (isThisCollectionAttemptActive && !safeCollector.isDoneSignaled) {
+            safeCollector.onDone();
+        }
         return;
       }
 
       subscription = controller.stream.listen((newValue) async {
-        if (!isCollectionProcessActive) return;
+        if (!isThisCollectionAttemptActive) return;
         try {
           await collector(newValue);
         } catch (e, s) {
-          if (isCollectionProcessActive) {
+          if (isThisCollectionAttemptActive) {
             safeCollector.sendError(e, s);
-            cancelSubscriptionAndMarkDone();
+            cancelSubscriptionAndFinalizeCollection();
           }
         }
       }, onError: (e, s) {
-        if (isCollectionProcessActive) {
+        if (isThisCollectionAttemptActive) {
           safeCollector.sendError(e, s);
-          cancelSubscriptionAndMarkDone();
+          cancelSubscriptionAndFinalizeCollection();
         }
       }, onDone: () {
-        if (isCollectionProcessActive) {
-          cancelSubscriptionAndMarkDone();
+        if (isThisCollectionAttemptActive) {
+          cancelSubscriptionAndFinalizeCollection();
         }
       });
     });
@@ -345,11 +394,9 @@ class SharedFlow<T> extends AbstractHotFlow<T> {
     final List<T> itemsToReplay = List<T>.from(_replayCache, growable: false);
 
     for (final T valueToReplay in itemsToReplay) {
-      // If the flow was closed (e.g., by an external call to `close()`)
-      // while replaying previous items, stop replaying.
-      if (isClosed) {
-        break;
-      }
+      // The collector lambda passed from AbstractHotFlow.collectSafely
+      // contains its own guards (isThisCollectionAttemptActive) to stop processing
+      // if the collection attempt has been finalized (e.g., due to an external close()).
       await collector(valueToReplay);
     }
   }

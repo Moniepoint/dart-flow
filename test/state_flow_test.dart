@@ -158,7 +158,8 @@ void main() {
 
         try {
           await collectionProcessFuture;
-          fail("stateFlow.collect() should have completed with an error, but it completed normally.");
+          fail(
+              "stateFlow.collect() should have completed with an error, but it completed normally.");
         } catch (e) {
           if (e == error) {
             errorCaught = true;
@@ -167,18 +168,20 @@ void main() {
           }
         }
 
-        expect(errorCaught, isTrue, reason: "The specific error was not caught.");
+        expect(errorCaught, isTrue,
+            reason: "The specific error was not caught.");
 
         stateFlow.value = 2;
         await Future.delayed(Duration.zero);
 
-        expect(collectedValues, [0, 1], reason: "Collection should stop after error.");
+        expect(collectedValues, [0, 1],
+            reason: "Collection should stop after error.");
       });
     });
 
     group('collectSafely()', () {
       test(
-          'receives current value and updates; error in lambda calls sendError',
+          'does not receives current value and updates; error in lambda calls sendError',
           () async {
         final collectedValues = <int>[];
         Object? reportedError;
@@ -210,11 +213,12 @@ void main() {
         stateFlow.value = 12;
         await Future.delayed(Duration.zero);
 
-        expect(collectedValues, [10, 11, 12]);
+        expect(collectedValues, [10, 11]);
         expect(reportedError, customError);
         expect(reportedStackTrace, isNotNull);
-        expect(isDone, isFalse);
+        expect(isDone, isTrue);
       });
+
       test('collectSafely is done when flow is closed', () async {
         bool isDone = false;
         final safeCollector = stateFlow.collectSafely((value) {});
@@ -244,7 +248,7 @@ void main() {
         expect(collectedValues, [0, 1]);
       });
 
-      test('new collect() on closed flow completes immediately without values',
+      test('new collect() on closed flow provides current value then completes',
           () async {
         stateFlow.close();
         await Future.delayed(Duration.zero);
@@ -254,7 +258,7 @@ void main() {
             .timeout(const Duration(milliseconds: 50))
             .collect(collectedValues.add);
 
-        expect(collectedValues, isEmpty);
+        expect(collectedValues, [0]);
       });
 
       test('new collectSafely() on closed flow calls onDone immediately',

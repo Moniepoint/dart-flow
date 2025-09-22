@@ -9,6 +9,10 @@ class SafeCollector {
   FlowCollector<dynamic>? _collector;
   Function()? _onDone;
   Function? _onError;
+  bool _isDoneSignaled = false;
+
+  /// Returns true if onDone has been called and processed.
+  bool get isDoneSignaled => _isDoneSignaled;
 
   /// Default error handling function.
   ///
@@ -16,6 +20,8 @@ class SafeCollector {
   /// collector's `addError` method (if a collector is set). You can customize
   /// error handling behavior using the `tryCatch` method.
   void onError(e, [StackTrace? trace]) async {
+    if (_isDoneSignaled) return;
+
     if (null != _onError) {
       if (_onError is Function(dynamic, dynamic)) {
         await _onError?.call(e, trace);
@@ -33,9 +39,15 @@ class SafeCollector {
   /// upon completion of the flow. You can customize completion behavior using
   /// the `done` method.
   void onDone() {
+    if (_isDoneSignaled) {
+      return; // Ensure onDone logic executes only once
+    }
+    _isDoneSignaled = true;
+
     if (null != _onDone) {
       _onDone?.call();
     } else {
+      // Only close internal collector if no custom handler is defined.
       _collector?.close();
     }
   }
@@ -81,5 +93,8 @@ class SafeCollector {
   /// Cleans up internal resources associated with the SafeCollector.
   void destroy() {
     _collector = null;
+    _onDone = null;
+    _onError = null;
+    _isDoneSignaled = false;
   }
 }
