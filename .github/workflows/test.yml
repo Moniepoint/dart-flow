@@ -13,20 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install Flutter SDK
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+
       - name: Setup dart
         uses: dart-lang/setup-dart@v1
       - name: Install dependencies
         run: |
-          flutter clean
-          flutter pub get
-          flutter pub global activate junitreport
+          dart pub get
+          dart pub global activate junitreport
       - name: Run test
         run: | 
-          flutter test --machine --coverage | tojunit -o report.xml
+          dart test --reporter json --coverage="coverage" | tojunit -o report.xml
       - name: Create Archive
         run: git archive --format=tar.gz --output=repository.tar.gz HEAD
       - name: Upload Repository Archive

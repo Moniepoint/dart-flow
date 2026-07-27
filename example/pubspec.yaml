@@ -1,0 +1,10 @@
+name: example
+description: An example demonstrating the usage of the flow package.
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flow:
+    path: ../
