@@ -100,5 +100,61 @@ void main() {
       expect(controller.hasListener, isFalse);
       await controller.close();
     });
+
+    test('returns a signal that stops delivery when cancelled manually, '
+        'without disposing the lifecycle', () async {
+      final controller = StreamController<int>();
+      final lifecycle = _FakeLifecycle();
+      final values = <int>[];
+
+      final signal = controller.stream.asFlow().onEach(values.add).launchIn(lifecycle);
+
+      controller.add(1);
+      await Future.delayed(const Duration(milliseconds: 20));
+      signal.cancel();
+      controller.add(2);
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      expect(values, [1]);
+      expect(signal.isCancelled, isTrue);
+      expect(lifecycle.isDisposed, isFalse);
+      await controller.close();
+    });
+
+    test('manually cancelling the returned signal also cancels the raw source '
+        'stream, same as lifecycle disposal', () async {
+      final controller = StreamController<int>();
+      final lifecycle = _FakeLifecycle();
+
+      final signal = controller.stream.asFlow().onEach((_) {}).launchIn(lifecycle);
+
+      await Future.delayed(const Duration(milliseconds: 20));
+      expect(controller.hasListener, isTrue);
+
+      signal.cancel();
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      expect(controller.hasListener, isFalse);
+      await controller.close();
+    });
+
+    test('lifecycle disposal still cancels the returned signal', () async {
+      final lifecycle = _FakeLifecycle();
+
+      final signal = flowOf(['A']).onEach((_) {}).launchIn(lifecycle);
+      expect(signal.isCancelled, isFalse);
+
+      lifecycle.dispose();
+      expect(signal.isCancelled, isTrue);
+    });
+
+    test('returns an already-cancelled signal if the lifecycle is already disposed',
+        () async {
+      final lifecycle = _FakeLifecycle()..dispose();
+
+      final signal = flowOf(['A']).onEach((_) {}).launchIn(lifecycle);
+
+      expect(signal.isCancelled, isTrue);
+    });
   });
 }

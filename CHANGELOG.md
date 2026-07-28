@@ -1,3 +1,9 @@
+## 0.2.0 (2026-07-28)
+
+**API Changes:**
+
+* `Flow<T>.launchIn(FlowLifecycle lifecycle)` now returns the `CancellationSignal` backing the collection, instead of `void` — mirrors Kotlin's `launchIn` returning a `Job`. Call `.cancel()` on it to stop that specific collection early without disposing `lifecycle` — useful when an instance needs to restart collection for a different argument (e.g. re-subscribing account-scoped data on an account switch) rather than tearing down the whole lifecycle. Non-breaking: the return value is safe to ignore, exactly as before.
+
 ## 0.1.1 (2026-07-28)
 
 **Fixes:**
