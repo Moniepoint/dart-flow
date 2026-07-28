@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'collectors/flow_collector.dart';
+import 'collectors/producer_scope.dart';
 import 'flowimpl.dart';
 
 /// FlowBuilders
@@ -52,3 +53,38 @@ Flow<T> flowOf<T>(Iterable<T> elements) => flow((collector) {
     collector.emit(element);
   }
 });
+
+/// Creates a new Flow whose [action] is given a [ProducerScope], which can
+/// launch concurrent work via [ProducerScope.launch] without the Flow
+/// closing early.
+///
+/// A plain `flow<T>((collector) async {...})` closes as soon as its
+/// callback's returned future completes — any fire-and-forget work still
+/// running is orphaned, not awaited. `channelFlow` doesn't finish until
+/// both [action] returns AND every action passed to [ProducerScope.launch]
+/// has completed, so it's safe to concurrently launch a one-shot operation
+/// alongside a line that awaits something that never completes on its own
+/// (e.g. forwarding a live stream).
+///
+/// Example:
+/// ```dart
+/// Flow<DashboardData> getDashboardData(String userId) {
+///   return channelFlow<DashboardData>((scope) async {
+///     // Runs concurrently with the line below — an uncaught error here
+///     // routes to scope.addError, it doesn't close the scope.
+///     scope.launch(() => fetchAndSyncFreshData(userId));
+///
+///     // Never returns on its own — keeps the channelFlow open,
+///     // forwarding every value the watch stream emits (including ones
+///     // caused by the write above) for as long as it's subscribed.
+///     await database.watchDashboardData(userId).collect(scope.emit);
+///   });
+/// }
+/// ```
+///
+/// [action] : A function that takes a [ProducerScope<T>] as an argument.
+/// It's responsible for emitting values of type `T` (directly, or via
+/// [ProducerScope.launch]) into the flow.
+Flow<T> channelFlow<T>(FutureOr<void> Function(ProducerScope<T> scope) action) {
+  return ChannelFlow<T>(action);
+}
