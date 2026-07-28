@@ -1,7 +1,15 @@
+## 0.1.1 (2026-07-28)
+
+**Fixes:**
+
+* `Flow.conflateMap` no longer coalesces values it shouldn't: it started its worker via `ProducerScope.launch`, which always defers to a new event-loop turn (`Timer.run`) — so if several sources notified by the same underlying write (e.g. several independently-watched DB tables) all emitted in the same synchronous burst, *every one of them, including the first*, coalesced together before the worker ever got a turn to run. Two temporally-distinct bursts arriving close enough together (e.g. an initial subscribe-time read immediately followed by a fast write-triggered re-read) could collapse into a single processed value instead of two. Fixed by starting the first value's processing synchronously, immediately, rather than through `launch` — only values that arrive *while that's already in flight* are coalesced now, which was the intent all along.
+
 ## 0.1.0 (2026-07-28)
 
 **New Features:**
 
+* **Reactive coalescing:**
+  * Added `Flow<T>.conflateMap<U>(transform)`: like `map`, but keeps at most one `transform` call in flight, coalescing values that arrive while a previous call is still running down to the latest. Equivalent to Kotlin's `flow.conflate().map { ... }` — deliberately not `mapLatest`/`switchMap`, since it never cancels an in-flight `transform` call (Dart has no cheap way to cancel an arbitrary in-flight `Future`).
 * **Concurrent producer flows:**
   * Added `channelFlow<T>((scope) async {...})`: a Flow builder whose block receives a `ProducerScope<T>` instead of a plain `FlowCollector<T>`. `ProducerScope.launch(action)` runs `action` concurrently, routes uncaught errors to `addError` automatically, and the flow doesn't finish until both the block returns and every launched action (including ones launched by another launched action) has completed — unlike a plain `flow()`, which closes as soon as its callback's returned future completes, orphaning any unawaited work still running underneath it.
 * **Lifecycle-aware collection:**

@@ -1,6 +1,6 @@
 name: flow
 description: "A new Dart package project."
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/Moniepoint/dart-flow
 
 environment:
