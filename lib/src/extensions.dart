@@ -145,19 +145,27 @@ extension FlowX<T> on Flow<T> {
       T? pending;
       bool hasPending = false;
       bool isDone = false;
+      bool workerRunning = false;
+      Future<void>? workerFuture;
       var wake = Completer<void>();
 
       void wakeWorker() {
         if (!wake.isCompleted) wake.complete();
       }
 
-      // A single persistent worker, not one launched call per value: it
-      // drains whatever's pending, then sleeps until woken by a new value
-      // or by upstream closing. Launching per-value would leak — this
-      // flow can run for a subscription's entire lifetime, so a `_launched`
-      // entry added on every emission would never be reclaimed until the
-      // whole thing tears down.
-      producer.launch(() async {
+      // Drains whatever's pending, then sleeps until woken by a new value
+      // or by upstream closing. Started synchronously by the first value
+      // to arrive (see below) rather than via `ProducerScope.launch` —
+      // `launch` always defers its action to a new event-loop turn (it
+      // schedules via `Future(...)`, i.e. `Timer.run`), so if several
+      // values arrive in the same synchronous burst — as independently
+      // watched sources notified by the same write commonly do — every
+      // one of them, including the first, would coalesce together before
+      // the worker ever got a turn to run. Starting the first value's
+      // processing immediately, synchronously, means only values that
+      // arrive *while that's already in flight* get coalesced — which is
+      // the actual point of this operator.
+      Future<void> worker() async {
         while (true) {
           if (hasPending) {
             hasPending = false;
@@ -173,15 +181,21 @@ extension FlowX<T> on Flow<T> {
           wake = Completer<void>();
           await wake.future;
         }
-      });
+      }
 
       await collect((value) {
         pending = value;
         hasPending = true;
-        wakeWorker();
+        if (workerRunning) {
+          wakeWorker();
+        } else {
+          workerRunning = true;
+          workerFuture = worker();
+        }
       });
       isDone = true;
       wakeWorker();
+      await workerFuture;
     });
   }
 

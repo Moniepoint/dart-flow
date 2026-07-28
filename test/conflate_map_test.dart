@@ -89,6 +89,55 @@ void main() {
       expect(maxConcurrent, 1);
     });
 
+    test('processes the first burst immediately — a later, temporally-separate '
+        'burst still produces its own separate result, not coalesced into the first',
+        () async {
+      // Regression test: several independently-watched sources notified by
+      // the same write (e.g. several DB tables in one transaction) each
+      // re-emit close together but not perfectly synchronously — this
+      // mirrors that with a Flow.merge of several "fetch current value on
+      // listen" sources, firing once at subscribe time and again after a
+      // later, clearly-separate write.
+      var value = 1;
+      final writes = StreamController<void>.broadcast();
+      Stream<int> watch() => Stream.multi((controller) {
+            controller.add(value);
+            final sub = writes.stream.listen((_) => controller.add(value));
+            controller.onCancel = sub.cancel;
+          });
+
+      final calls = <int>[];
+      final merged = Flow.merge<int>([watch().asFlow(), watch().asFlow(), watch().asFlow()]);
+      final fl = merged.conflateMap((_) async {
+        calls.add(value);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        return value;
+      });
+
+      final events = <int>[];
+      final subscription = fl.asStream().listen(events.add);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      value = 2;
+      writes.add(null); // a later write, well after the first burst settled
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      await writes.close();
+      await subscription.cancel();
+
+      // With 3 merged sources, one straggling behind the synchronous start
+      // of the first burst can trigger one extra same-value coalesced
+      // round within that burst — harmless (a real caller would dedupe
+      // downstream via distinctUntilChanged). What matters here is that
+      // the second, later burst isn't silently lost/merged into the
+      // first: both its call and its emission actually happen.
+      expect(calls, isNotEmpty);
+      expect(calls.every((c) => c == 1 || c == 2), isTrue);
+      expect(calls.last, 2);
+      expect(events.last, 2);
+      expect(events.first, 1);
+    });
+
     test('routes a transform error to the flow without ending it', () async {
       final controller = StreamController<int>();
       final fl = controller.stream.asFlow().conflateMap((value) async {
