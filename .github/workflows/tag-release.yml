@@ -1,0 +1,36 @@
+name: Tag release
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Read pubspec.yaml version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Tag if this version hasn't been tagged yet
+        env:
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists — pubspec.yaml version wasn't bumped, nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG"
