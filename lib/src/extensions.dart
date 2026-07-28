@@ -10,6 +10,8 @@ import 'package:flow/src/operators/distinct.dart';
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
 import 'builders.dart';
+import 'cancellation/cancellation_signal.dart';
+import 'lifecycle/flow_lifecycle.dart';
 
 /// @author Paul Okeke
 ///
@@ -608,6 +610,39 @@ extension FlowX<T> on Flow<T> {
       await collect(collector.emit);
     });
   }
+
+  /// Starts collecting this flow, stopping automatically once [lifecycle]
+  /// is disposed — no `StreamSubscription`/cancel bookkeeping required at
+  /// the call site.
+  ///
+  /// Mirrors Kotlin's `Flow.launchIn(scope)`: configure the pipeline with
+  /// [onEach]/[catchError] first, then call this last. It takes no
+  /// callback of its own — whatever [onEach] attached upstream is what
+  /// actually runs per value.
+  ///
+  /// Example:
+  /// ```dart
+  /// someFlow
+  ///   .onEach((value) => print(value))
+  ///   .catchError((e, _) => print('error: $e'))
+  ///   .launchIn(viewModel); // viewModel implements FlowLifecycle
+  /// ```
+  ///
+  /// Cancellation cascades cooperatively: any nested Flow collected
+  /// while this call is active (e.g. an upstream flow this one wraps)
+  /// tears itself down too, once [lifecycle] ends — see
+  /// [currentCancellationSignal].
+  void launchIn(FlowLifecycle lifecycle) {
+    if (lifecycle.isDisposed) return;
+    final signal = CancellationSignal();
+    runWithCancellationSignal(signal, () {
+      final subscription = asStream().listen((_) {});
+      lifecycle.addCleanup(() {
+        signal.cancel();
+        subscription.cancel();
+      });
+    });
+  }
 }
 
 ///
@@ -656,12 +691,31 @@ Future<T> _flowToFuture<T>(Flow<T> flow) async {
 }
 
 extension StreamX<T> on Stream<T> {
-  /// TODO document
+  /// Wraps this [Stream] as a [Flow].
+  ///
+  /// If collected while a [CancellationSignal] is active (i.e. inside a
+  /// [FlowX.launchIn] call), this stream's own subscription is cancelled
+  /// as soon as that signal fires — not just left running until the
+  /// stream naturally ends on its own. This is what lets `launchIn`'s
+  /// cancellation reach all the way down to a raw source stream (e.g. a
+  /// database watch stream) instead of stopping only at the outermost
+  /// Flow.
   Flow<T> asFlow() {
     return flow((collector) async {
-      await for (var value in this) {
-        collector.emit(value);
-      }
+      final completer = Completer<void>();
+      late final StreamSubscription<T> subscription;
+      subscription = listen(
+        (value) => collector.emit(value),
+        onError: (Object e, StackTrace st) => collector.addError(e, st),
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+      );
+      currentCancellationSignal()?.onCancel(() {
+        unawaited(subscription.cancel());
+        if (!completer.isCompleted) completer.complete();
+      });
+      await completer.future;
     });
   }
 }

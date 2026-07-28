@@ -193,6 +193,13 @@ abstract class AbstractFlow<T> extends Flow<T> {
           }
         });
 
+    // Cascades an ambient launchIn cancellation into this specific
+    // subscription — every nested Flow-to-Flow collect (e.g. inside
+    // .onEach/.filter/.catchError, or a channelFlow forwarding an
+    // upstream flow) goes through this same method, so cancelling once
+    // tears down the whole chain.
+    currentCancellationSignal()?.onCancel(_closeSubscription);
+
     return safeCollector;
   }
 
