@@ -727,16 +727,27 @@ extension FlowX<T> on Flow<T> {
   /// while this call is active (e.g. an upstream flow this one wraps)
   /// tears itself down too, once [lifecycle] ends — see
   /// [currentCancellationSignal].
-  void launchIn(FlowLifecycle lifecycle) {
-    if (lifecycle.isDisposed) return;
+  ///
+  /// Returns the [CancellationSignal] backing this collection — mirrors
+  /// Kotlin's `launchIn` returning a `Job`. Call `.cancel()` on it to stop
+  /// this specific collection early, without disposing [lifecycle] —
+  /// useful when the same instance needs to restart collection (e.g. for
+  /// a different argument) rather than tearing the whole thing down.
+  /// [lifecycle] disposing cancels it too, same as before; either path
+  /// converges on the same signal, so there's one teardown mechanism, not
+  /// two racing ones.
+  CancellationSignal launchIn(FlowLifecycle lifecycle) {
     final signal = CancellationSignal();
+    if (lifecycle.isDisposed) {
+      signal.cancel();
+      return signal;
+    }
     runWithCancellationSignal(signal, () {
       final subscription = asStream().listen((_) {});
-      lifecycle.addCleanup(() {
-        signal.cancel();
-        subscription.cancel();
-      });
+      signal.onCancel(subscription.cancel);
     });
+    lifecycle.addCleanup(signal.cancel);
+    return signal;
   }
 }
 
