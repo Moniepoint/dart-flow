@@ -1,3 +1,19 @@
+## 0.0.1-alpha03 (2026-07-28)
+
+**New Features:**
+
+* **Concurrent producer flows:**
+  * Added `channelFlow<T>((scope) async {...})`: a Flow builder whose block receives a `ProducerScope<T>` instead of a plain `FlowCollector<T>`. `ProducerScope.launch(action)` runs `action` concurrently, routes uncaught errors to `addError` automatically, and the flow doesn't finish until both the block returns and every launched action (including ones launched by another launched action) has completed — unlike a plain `flow()`, which closes as soon as its callback's returned future completes, orphaning any unawaited work still running underneath it.
+* **Lifecycle-aware collection:**
+  * Added `FlowLifecycle`: a minimal interface (`isDisposed`, `addCleanup`) that lets a Flow know when to stop collecting on its own. Deliberately named to match the shape most ViewModel base classes already have, so implementing it is typically zero new code.
+  * Added `Flow<T>.launchIn(FlowLifecycle lifecycle)`, mirroring Kotlin's `Flow.launchIn(scope)`: build the pipeline with `.onEach`/`.catchError` first, then call `.launchIn(lifecycle)` last. No `StreamSubscription` is ever exposed to the caller — collection starts and is cancelled automatically once the lifecycle disposes.
+  * Added `CancellationSignal`, threaded through the current `Zone` (mirroring the existing `TaskPoolExecutor` Zone pattern). `AbstractFlow.collectSafely` registers against the ambient signal, so any nested Flow-to-Flow collect happening inside a `launchIn` call cascades its own teardown automatically — no manual cancellation checks needed in application code.
+
+**API Changes:**
+
+* `StreamX.asFlow()` no longer uses a plain `await for` (which can't respond to cancellation at all) — it now subscribes manually and checks the ambient `CancellationSignal`, so a raw source stream (e.g. a database watch stream) gets its own subscription cancelled too, not just the outermost Flow.
+
+
 ## 0.0.1-alpha02 (2024-03-22)
 
 **New Features:**
