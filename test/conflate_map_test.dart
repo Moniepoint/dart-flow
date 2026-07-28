@@ -4,10 +4,10 @@ import 'package:flow/flow.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('mapLatest', () {
+  group('conflateMap', () {
     test('transforms each value when calls do not overlap', () async {
       final controller = StreamController<int>();
-      final fl = controller.stream.asFlow().mapLatest((value) async {
+      final fl = controller.stream.asFlow().conflateMap((value) async {
         await Future<void>.delayed(const Duration(milliseconds: 5));
         return value * 10;
       });
@@ -36,7 +36,7 @@ void main() {
       final controller = StreamController<int>();
       final calls = <int>[];
 
-      final fl = controller.stream.asFlow().mapLatest((value) async {
+      final fl = controller.stream.asFlow().conflateMap((value) async {
         calls.add(value);
         await Future<void>.delayed(const Duration(milliseconds: 30));
         return value;
@@ -67,7 +67,7 @@ void main() {
       var concurrent = 0;
       var maxConcurrent = 0;
 
-      final fl = controller.stream.asFlow().mapLatest((value) async {
+      final fl = controller.stream.asFlow().conflateMap((value) async {
         concurrent++;
         maxConcurrent = concurrent > maxConcurrent ? concurrent : maxConcurrent;
         await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -91,7 +91,7 @@ void main() {
 
     test('routes a transform error to the flow without ending it', () async {
       final controller = StreamController<int>();
-      final fl = controller.stream.asFlow().mapLatest((value) async {
+      final fl = controller.stream.asFlow().conflateMap((value) async {
         if (value == 1) throw Exception('boom');
         return value;
       });

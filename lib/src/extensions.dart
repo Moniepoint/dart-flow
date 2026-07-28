@@ -111,18 +111,22 @@ extension FlowX<T> on Flow<T> {
   /// before an earlier [transform] call finishes, each one still starts
   /// its own concurrent call — results can complete (and so emit) out of
   /// order, and any side effect inside [transform] runs once per value
-  /// regardless of how close together they arrived. `mapLatest` instead
+  /// regardless of how close together they arrived. `conflateMap` instead
   /// keeps at most one call to [transform] in flight: a value that arrives
   /// while a previous call is still running replaces whatever's pending
   /// rather than starting a new concurrent call, and once the in-flight
   /// call finishes, [transform] runs exactly once more against only the
   /// newest pending value — not once per value that arrived in between.
+  /// Equivalent to Kotlin's `flow.conflate().map { ... }`: conflate the
+  /// source, then process whatever gets through sequentially.
   ///
-  /// This mirrors Kotlin's `Flow.mapLatest`, with one difference: Dart has
-  /// no cheap way to cancel an arbitrary in-flight `Future`, so an
-  /// in-flight [transform] call always runs to completion rather than
-  /// being cancelled when a newer value supersedes it — only the *next*
-  /// call is what gets skipped/coalesced, not the current one.
+  /// This is deliberately *not* `mapLatest`/`switchMap`: it never cancels
+  /// an in-flight [transform] call. A value superseding the one currently
+  /// running still waits for that call to finish and emit before its own
+  /// (coalesced) turn starts — only *not-yet-started* work is ever skipped.
+  /// Dart has no cheap way to cancel an arbitrary in-flight `Future`, so
+  /// true cancel-and-restart semantics aren't something a generic operator
+  /// over `FutureOr<U> Function(T)` can offer here.
   ///
   /// Useful when several independent upstream sources can all trigger the
   /// same expensive rebuild in quick succession (e.g. several database
@@ -133,10 +137,10 @@ extension FlowX<T> on Flow<T> {
   ///
   /// Example:
   /// ```dart
-  /// tableChangeFlow.mapLatest((_) => rebuildExpensiveSnapshot())
+  /// tableChangeFlow.conflateMap((_) => rebuildExpensiveSnapshot())
   ///   .collect(print);
   /// ```
-  Flow<U> mapLatest<U>(FutureOr<U> Function(T value) transform) {
+  Flow<U> conflateMap<U>(FutureOr<U> Function(T value) transform) {
     return channelFlow<U>((producer) async {
       T? pending;
       bool hasPending = false;
