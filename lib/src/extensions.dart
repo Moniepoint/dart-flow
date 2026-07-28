@@ -104,6 +104,83 @@ extension FlowX<T> on Flow<T> {
     }).collectWith(collector).done(() {});
   });
 
+  /// Like [map], but coalesces overlapping work instead of running
+  /// [transform] concurrently for every value.
+  ///
+  /// Plain [map] has no backpressure: if this flow emits several values
+  /// before an earlier [transform] call finishes, each one still starts
+  /// its own concurrent call — results can complete (and so emit) out of
+  /// order, and any side effect inside [transform] runs once per value
+  /// regardless of how close together they arrived. `mapLatest` instead
+  /// keeps at most one call to [transform] in flight: a value that arrives
+  /// while a previous call is still running replaces whatever's pending
+  /// rather than starting a new concurrent call, and once the in-flight
+  /// call finishes, [transform] runs exactly once more against only the
+  /// newest pending value — not once per value that arrived in between.
+  ///
+  /// This mirrors Kotlin's `Flow.mapLatest`, with one difference: Dart has
+  /// no cheap way to cancel an arbitrary in-flight `Future`, so an
+  /// in-flight [transform] call always runs to completion rather than
+  /// being cancelled when a newer value supersedes it — only the *next*
+  /// call is what gets skipped/coalesced, not the current one.
+  ///
+  /// Useful when several independent upstream sources can all trigger the
+  /// same expensive rebuild in quick succession (e.g. several database
+  /// tables watched together, all written by the same transaction) and
+  /// [transform] itself has a side effect that shouldn't repeat once per
+  /// source — running it once per *settled* batch instead of once per
+  /// individual trigger is the point.
+  ///
+  /// Example:
+  /// ```dart
+  /// tableChangeFlow.mapLatest((_) => rebuildExpensiveSnapshot())
+  ///   .collect(print);
+  /// ```
+  Flow<U> mapLatest<U>(FutureOr<U> Function(T value) transform) {
+    return channelFlow<U>((producer) async {
+      T? pending;
+      bool hasPending = false;
+      bool isDone = false;
+      var wake = Completer<void>();
+
+      void wakeWorker() {
+        if (!wake.isCompleted) wake.complete();
+      }
+
+      // A single persistent worker, not one launched call per value: it
+      // drains whatever's pending, then sleeps until woken by a new value
+      // or by upstream closing. Launching per-value would leak — this
+      // flow can run for a subscription's entire lifetime, so a `_launched`
+      // entry added on every emission would never be reclaimed until the
+      // whole thing tears down.
+      producer.launch(() async {
+        while (true) {
+          if (hasPending) {
+            hasPending = false;
+            final T value = pending as T;
+            try {
+              producer.emit(await transform(value));
+            } catch (e, st) {
+              producer.addError(e, st);
+            }
+            continue;
+          }
+          if (isDone) return;
+          wake = Completer<void>();
+          await wake.future;
+        }
+      });
+
+      await collect((value) {
+        pending = value;
+        hasPending = true;
+        wakeWorker();
+      });
+      isDone = true;
+      wakeWorker();
+    });
+  }
+
   /// Filters elements emitted by the flow based on a provided predicate function.
   ///
   /// This function allows you to selectively emit elements from the flow.
