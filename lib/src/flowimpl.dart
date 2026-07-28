@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flow/flow.dart';
 import 'package:flow/src/collectors/collectors.dart';
 import 'collectors/flow_collector.dart';
+import 'collectors/producer_scope_impl.dart';
 import 'collectors/safe_collector.dart';
 import 'task_pool_executor.dart';
 
@@ -231,6 +232,28 @@ final class SafeFlow<T> extends AbstractFlow<T> {
   @override
   Future<void> invokeSafely(FlowCollector<T> collector) async {
     return block.call(collector);
+  }
+}
+
+/// A Flow whose block is given a [ProducerScope] instead of a plain
+/// [FlowCollector], allowing it to [ProducerScope.launch] concurrent work.
+///
+/// Unlike [SafeFlow], this Flow doesn't finish as soon as [block]'s
+/// returned future completes — it also awaits every action passed to
+/// [ProducerScope.launch] (see [ProducerScopeImpl.awaitAllLaunched]),
+/// so a launched action and an indefinitely-awaited line in [block] (e.g.
+/// forwarding a live stream) can run side by side without the flow
+/// closing early.
+final class ChannelFlow<T> extends AbstractFlow<T> {
+  final FutureOr<void> Function(ProducerScope<T>) block;
+
+  ChannelFlow(this.block): super();
+
+  @override
+  Future<void> invokeSafely(FlowCollector<T> collector) async {
+    final scope = ProducerScopeImpl<T>(collector);
+    await block(scope);
+    await scope.awaitAllLaunched();
   }
 }
 
