@@ -8,6 +8,7 @@ The Flow API provides functionalities for building asynchronous data processing 
 
 * [map<U>](#map) Applies a transformation function to each element in the flow, resulting in a flow with elements of type `U`.
 * [flatMap](#flatmap) Applies a transformation function to each element in the flow, potentially creating new flows. The resulting flows are then flattened into a single stream of values.
+* [conflateMap](#conflatemap) Like `map`, but coalesces overlapping work — keeps at most one transform call in flight, processing only the newest pending value once the current call finishes.
 * [asStream](#asStream) Converts this flow into a `Stream<T>`.
 * [filter](#filter)  Filters elements emitted by the flow based on a provided predicate function.
 * [cache](#cache) Creates a new Flow that applies a caching strategy using the provided ```CacheFlow``` and ```CacheStrategy``` objects.
@@ -19,6 +20,14 @@ The Flow API provides functionalities for building asynchronous data processing 
 * [onEach](#onEach) Returns a flow that invokes the given [action] before each value of theupstream flow is emitted downstream.
 * [onEmpty](#onEmpty) Creates a new flow that executes the provided action ([action]) only if the original flow emits no events (i.e., is empty).
 * [distinctUntilChanged](#distinctUntilChanged)A Function that returns a flow where all subsequent repetitions of the same value are filtered out
+
+**Flow Builders:** Functions that create a new `Flow<T>`:
+
+* [channelFlow](#channelflow) Creates a flow that can launch concurrent work (e.g. a one-shot fetch) alongside a value it forwards indefinitely (e.g. a live stream), without either closing the other early.
+
+**Lifecycle Integration:**
+
+* [launchIn](#launchin) Starts collecting a flow, stopping automatically once a `FlowLifecycle` (e.g. a ViewModel) is disposed — no manual `StreamSubscription`/cancel bookkeeping required.
 
 
 
@@ -51,6 +60,29 @@ flowOf([1, 2, 3, 4])
   .collect(print); // Prints: 2, 4, 6, 8
 ```
 
+## channelFlow
+
+A plain `flow<T>((collector) async {...})` closes as soon as its callback's returned future completes — any fire-and-forget work still running is orphaned, not awaited. `channelFlow` instead hands the callback a `ProducerScope`, which can `launch` concurrent work without the flow closing early: it doesn't finish until both the callback returns *and* every launched action has completed. That makes it safe to concurrently launch a one-shot operation (e.g. a network fetch) alongside a line that awaits something that never completes on its own (e.g. forwarding a live database watch stream).
+
+An uncaught error thrown by a launched action is routed to `scope.addError` — it doesn't terminate the scope or any other launched action.
+
+```dart
+Flow<DashboardData> getDashboardData(String userId) {
+  return channelFlow<DashboardData>((scope) async {
+    // Runs concurrently with the line below — an uncaught error here
+    // routes to scope.addError, it doesn't close the scope.
+    scope.launch(() => fetchAndSyncFreshData(userId));
+
+    // Never returns on its own — keeps the channelFlow open, forwarding
+    // every value the watch stream emits (including ones caused by the
+    // write above) for as long as it's subscribed.
+    await database.watchDashboardData(userId).collect(scope.emit);
+  });
+}
+```
+
+[scope] : A `ProducerScope<T>` responsible for emitting values of type `T` into the flow, either directly (`scope.emit`) or from concurrent work started via `scope.launch`.
+
 ## Flow Operators
 
 ## map<U>
@@ -76,6 +108,22 @@ flowOf([1, 2, 3])
 // Output:
 // 4 -> 5 -> 6
 ```
+
+## conflateMap
+Like `map`, but coalesces overlapping work instead of running `transform` concurrently for every value.
+
+Plain `map` has no backpressure: if the flow emits several values before an earlier `transform` call finishes, each one still starts its own concurrent call — results can complete (and so emit) out of order, and any side effect inside `transform` runs once per value regardless of how close together they arrived. `conflateMap` instead keeps at most one call to `transform` in flight: a value that arrives while a previous call is still running replaces whatever's pending rather than starting a new concurrent call, and once the in-flight call finishes, `transform` runs exactly once more against only the newest pending value — not once per value that arrived in between. Equivalent to Kotlin's `flow.conflate().map { ... }`: conflate the source, then process whatever gets through sequentially.
+
+This is deliberately *not* `mapLatest`/`switchMap`: it never cancels an in-flight `transform` call. A value superseding the one currently running still waits for that call to finish and emit before its own (coalesced) turn starts — only *not-yet-started* work is ever skipped.
+
+Useful when several independent upstream sources can all trigger the same expensive rebuild in quick succession (e.g. several database tables watched together, all written by the same transaction) and `transform` itself has a side effect that shouldn't repeat once per source — running it once per *settled* batch instead of once per individual trigger is the point.
+
+```dart
+tableChangeFlow.conflateMap((_) => rebuildExpensiveSnapshot())
+  .collect(print);
+```
+
+[transform] : A function that takes a value of type `T` and returns a `FutureOr<U>`. Only the most recently arrived value is guaranteed to eventually get its own `transform` call once the previous call settles.
 
 ## asStream
 Converts this flow into a `Stream<T>`.
@@ -452,6 +500,53 @@ final flow = flowOf([1, 2, 3]);
 final prefixed = flow.startWith(0);
 prefixed.collect(print); // prints 0, 1, 2, 3
 ```
+
+## Lifecycle Integration
+
+## launchIn
+Starts collecting this flow, stopping automatically once a lifecycle is disposed — no `StreamSubscription`/cancel bookkeeping required at the call site. Mirrors Kotlin's `Flow.launchIn(scope)`.
+
+Configure the pipeline with `onEach`/`catchError` first, then call `launchIn` last — it takes no callback of its own, whatever `onEach` attached upstream is what actually runs per value.
+
+```dart
+someFlow
+  .onEach((value) => print(value))
+  .catchError((e, _) => print('error: $e'))
+  .launchIn(viewModel); // viewModel implements FlowLifecycle
+```
+
+Cancellation cascades cooperatively: any nested flow collected while this call is active (e.g. an upstream flow this one wraps) tears itself down too, once the lifecycle ends.
+
+`launchIn` returns the `CancellationSignal` backing this collection — mirrors Kotlin's `launchIn` returning a `Job`. Call `.cancel()` on it to stop this specific collection early, without disposing the lifecycle — useful when the same instance needs to restart collection (e.g. for a different argument) rather than tearing the whole thing down. The lifecycle disposing cancels it too, same as before; either path converges on the same signal, so there's one teardown mechanism, not two racing ones.
+
+```dart
+final signal = someFlow.onEach(handle).launchIn(viewModel);
+// ...later, without disposing viewModel:
+signal.cancel();
+```
+
+[lifecycle] : A `FlowLifecycle` — anything with a well-defined "end" (a ViewModel's dispose, a widget's `State.dispose`, a request scope, etc.). It needs an `isDisposed` getter and an `addCleanup(void Function())` method; most ViewModel base classes already have an equivalent shape, so satisfying this is typically a zero-new-code addition.
+
+## FlowLifecycle
+The minimal contract `launchIn` needs to know when to stop collecting on its own, without exposing a raw `StreamSubscription` to the caller.
+
+```dart
+abstract class FlowLifecycle {
+  bool get isDisposed;
+  void addCleanup(void Function() action);
+}
+```
+
+Implement this on anything that has a well-defined "end". The two members are named to match the shape most ViewModel base classes already have, so satisfying this interface is typically a zero-new-code addition on the implementing side.
+
+## CancellationSignal
+A cancel-once, notify-listeners primitive returned by `launchIn` and threaded through the current `Zone` so nested flow operations can cascade their own teardown without the code that created them having to check anything explicitly.
+
+* `isCancelled` — whether `cancel()` has already been called.
+* `cancel()` — cancels the signal, synchronously notifying every registered listener. Idempotent — calling it more than once has no further effect.
+* `onCancel(listener)` — registers `listener` to run when `cancel()` is called. If the signal is already cancelled, `listener` runs immediately.
+
+You won't usually construct one directly — `launchIn` returns it, and Flow internals read it via `currentCancellationSignal()` to cascade teardown through nested Flow operations automatically.
 
 
 **Benefits:**
