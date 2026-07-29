@@ -109,7 +109,7 @@ abstract interface class Flow<T> {
 abstract class AbstractFlow<T> extends Flow<T> {
   AbstractFlow({StreamController<T>? controller}) {
     _controller = controller ?? StreamController.broadcast(sync: false);
-    _flowCollector = FlowCollectorImpl(_controller!.sink);
+    _flowCollector = FlowCollectorImpl(_controller!);
     _controller?.onListen = onListen;
   }
 
@@ -127,7 +127,10 @@ abstract class AbstractFlow<T> extends Flow<T> {
       ));
       await invokeSafely(_flowCollector!);
     } catch (e) {
-      _controller?.addError(e);
+      // Same close-then-drop rule as FlowCollectorImpl — if the
+      // controller closed while invokeSafely was still unwinding, no one
+      // is listening for this error anymore.
+      if (_controller?.isClosed != true) _controller?.addError(e);
     } finally {
       taskPool?.registerTask(Task(
           ExecutionType.signalClosure,
@@ -206,7 +209,7 @@ abstract class AbstractFlow<T> extends Flow<T> {
   void _ensureActive() {
     if (null == _controller || true == _controller?.isClosed) {
       _controller = StreamController.broadcast(sync: false);
-      _flowCollector = FlowCollectorImpl(_controller!.sink);
+      _flowCollector = FlowCollectorImpl(_controller!);
       _controller!.onListen = onListen;
     }
   }

@@ -1,3 +1,9 @@
+## 0.2.1 (2026-07-29)
+
+**Fixes:**
+
+* `emit`/`addError` no longer throw `Bad state: Cannot add new events after calling close` when they race a downstream close. Cancellation in this library is cooperative — closing a controller doesn't preempt an in-flight upstream emit already on its way — so a late call arriving after close is an expected race, not a bug. It's now dropped silently instead, matching how `Stream.multi` already ignores adds from a cancelled listener.
+
 ## 0.2.0 (2026-07-28)
 
 **API Changes:**
