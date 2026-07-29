@@ -5,29 +5,30 @@ import 'flow_collector.dart';
 
 /// Concrete implementation of the FlowCollector interface.
 ///
-/// This class provides a concrete implementation of the `FlowCollector<T>`
-/// interface. It utilizes an `EventSink<T>` object to emit values into the flow.
+/// Backed by the [StreamController] itself, not just its sink — so [emit]
+/// and [addError] can check [StreamController.isClosed] first. Cancellation
+/// in this library is cooperative (closing a downstream controller doesn't
+/// preempt an in-flight upstream emit already on its way), so a late call
+/// arriving after close is an expected race, not a bug — it's dropped
+/// silently instead of throwing, matching how `Stream.multi` already
+/// ignores adds from a cancelled listener.
 final class FlowCollectorImpl<T> implements FlowCollector<T> {
-  /// Internal EventSink used for emitting data.
-  final EventSink<T> _sink;
+  final StreamController<T> _controller;
 
-  /// Constructor for FlowCollectorImpl.
-  ///
-  /// Takes an `EventSink<T>` object as an argument. This `_sink` is likely
-  /// used internally to send data downstream in the flow.
-  FlowCollectorImpl(this._sink);
+  FlowCollectorImpl(this._controller);
 
   @override
-  void addError(Object e, [StackTrace? trace]) => _sink.addError(e, trace);
-
-  /// Emits a value of type `T` into the flow (overrides emit from FlowCollector).
-  ///
-  /// This method delegates the emission of the `value` to the internal
-  /// `_sink` object. The `_sink` object is responsible for the actual data
-  /// transmission mechanism within the Flow.
-  @override
-  void emit(T value) => _sink.add(value);
+  void addError(Object e, [StackTrace? trace]) {
+    if (_controller.isClosed) return;
+    _controller.addError(e, trace);
+  }
 
   @override
-  void close() => _sink.close();
+  void emit(T value) {
+    if (_controller.isClosed) return;
+    _controller.add(value);
+  }
+
+  @override
+  void close() => _controller.close();
 }
