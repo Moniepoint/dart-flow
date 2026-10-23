@@ -1,4 +1,4 @@
-import 'package:flow/flow.dart';
+import 'package:flowx/flowx.dart';
 
 void main() async {
   print('--- Flow API Example ---\n');

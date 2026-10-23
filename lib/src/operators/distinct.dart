@@ -1,4 +1,4 @@
-import 'package:flow/flow.dart';
+import 'package:flowx/flowx.dart';
 
 typedef KeySelector<K, T> = K Function(T value);
 typedef EquivalenceMethod<K> = bool Function(K? previousKey, K? nextKey);

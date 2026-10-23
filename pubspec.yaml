@@ -1,7 +1,14 @@
-name: flow
-description: "A new Dart package project."
-version: 0.2.1
+name: flowx
+description: "Kotlin-style cold Flows for Dart: composable async pipelines with operators, retries, caching, concurrent producers and lifecycle-aware cancellation."
+version: 0.3.0
 homepage: https://github.com/Moniepoint/dart-flow
+repository: https://github.com/Moniepoint/dart-flow
+issue_tracker: https://github.com/Moniepoint/dart-flow/issues
+topics:
+  - flow
+  - stream
+  - reactive
+  - async
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

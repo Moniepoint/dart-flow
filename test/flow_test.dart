@@ -1,7 +1,7 @@
 
 
 import 'package:test/test.dart';
-import 'package:flow/flow.dart';
+import 'package:flowx/flowx.dart';
 
 
 void main() {

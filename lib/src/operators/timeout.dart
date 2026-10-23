@@ -1,7 +1,6 @@
 
 import 'dart:async';
-import 'package:flow/flow.dart';
-import 'package:flow/src/collectors/flow_collector.dart';
+import 'package:flowx/flowx.dart';
 
 /// A flow wrapper that imposes a timeout on the collection process of an
 /// upstream flow.

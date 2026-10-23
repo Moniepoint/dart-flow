@@ -1,4 +1,4 @@
-library flow;
+library flowx;
 export 'src/flowimpl.dart';
 export 'src/extensions.dart' hide DurationX;
 export 'src/builders.dart';

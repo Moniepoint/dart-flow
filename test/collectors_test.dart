@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flow/src/collectors/collectors.dart';
+import 'package:flowx/src/collectors/collectors.dart';
 import 'package:test/test.dart';
 
 void main() {

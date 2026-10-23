@@ -1,3 +1,13 @@
+## 0.3.0
+
+**Breaking Changes:**
+
+* The package is now published on pub.dev as **`flowx`** (the `flow` name is taken). Update your dependency to `flowx` and your imports from `package:flow/flow.dart` to `package:flowx/flowx.dart`. The API itself is unchanged.
+
+**Other:**
+
+* Added a real package description, repository, issue tracker and topics to `pubspec.yaml`.
+
 ## 0.2.1 (2026-07-29)
 
 **Fixes:**

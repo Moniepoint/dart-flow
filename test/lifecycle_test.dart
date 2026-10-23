@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flow/flow.dart';
+import 'package:flowx/flowx.dart';
 import 'package:test/test.dart';
 
 class _FakeLifecycle implements FlowLifecycle {
