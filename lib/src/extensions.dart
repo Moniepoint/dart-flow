@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flow/src/collectors/safe_collector.dart';
-import 'package:flow/src/operators/cache.dart';
-import 'package:flow/src/exceptions/flow_exception.dart';
-import 'package:flow/src/operators/timeout.dart';
-import 'package:flow/src/retries.dart';
-import 'package:flow/src/operators/distinct.dart';
+import 'package:flowx/src/collectors/safe_collector.dart';
+import 'package:flowx/src/operators/cache.dart';
+import 'package:flowx/src/exceptions/flow_exception.dart';
+import 'package:flowx/src/operators/timeout.dart';
+import 'package:flowx/src/retries.dart';
+import 'package:flowx/src/operators/distinct.dart';
 
 import 'flowimpl.dart';
 import 'collectors/flow_collector.dart';
@@ -576,7 +576,7 @@ extension FlowX<T> on Flow<T> {
   Flow<T> retryWith(RetryPolicy Function(Exception cause) action) {
     RetryPolicy? retryPolicy;
     Exception? previousException;
-    return this.retryWhen((cause, attempts) async {
+    return retryWhen((cause, attempts) async {
       if (null != retryPolicy && previousException.isIdenticalWith(cause)) {
         return await retryPolicy?.retry(attempts) ?? false;
       } else {

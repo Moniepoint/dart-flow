@@ -1,6 +1,8 @@
-# Flow API
+# flowx
 
-The Flow API provides functionalities for building asynchronous data processing pipelines. It offers a concise and expressive way to chain operations on streams of data.
+[![pub package](https://img.shields.io/pub/v/flowx.svg)](https://pub.dev/packages/flowx)
+
+Kotlin-style cold Flows for Dart. The Flow API provides functionalities for building asynchronous data processing pipelines. It offers a concise and expressive way to chain operations on streams of data.
 
 **Key Features:**
 
@@ -33,14 +35,15 @@ The Flow API provides functionalities for building asynchronous data processing 
 
 **Getting Started:**
 
-1. Install the Flow package:
+1. Add `flowx` to your project:
    ```bash
-   pub add flow
+   dart pub add flowx
    ```
+   (or `flutter pub add flowx` in a Flutter app)
 
 2. Import the Flow library in your Dart code:
    ```dart
-   import 'package:flow/flow.dart';
+   import 'package:flowx/flowx.dart';
    ```
 
 ## Creating a flow
@@ -559,13 +562,18 @@ You won't usually construct one directly — `launchIn` returns it, and Flow int
 
 **Further Documentation:**
 
-##### TODO
+* API reference: [pub.dev/documentation/flowx](https://pub.dev/documentation/flowx/latest/)
+* Runnable example: [`example/example.dart`](example/example.dart)
 
 **Contributing:**
 
-We welcome contributions to the Flow API. Please refer to the CONTRIBUTING.md file for guidelines.
+We welcome contributions to the Flow API. Please refer to [CONTRIBUTION.md](CONTRIBUTION.md) for guidelines.
 
-License
+**Maintainers:**
+
+Created and maintained by [Paul Okeke](https://github.com/donpaul120). See [AUTHORS](AUTHORS) for everyone who has contributed.
+
+**License:**
 
 Copyright 2024 Moniepoint, Inc.
 

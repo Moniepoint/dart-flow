@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flow/flow.dart';
-import 'package:flow/src/extensions.dart';
+import 'package:flowx/flowx.dart';
+import 'package:flowx/src/extensions.dart';
 import 'package:test/test.dart';
 
 main() {

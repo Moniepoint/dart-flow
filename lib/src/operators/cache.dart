@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flow/flow.dart';
-import 'package:flow/src/collectors/safe_collector.dart';
-import 'package:flow/src/exceptions/flow_exception.dart';
-import 'package:flow/src/task_pool_executor.dart';
-import '../collectors/flow_collector.dart';
+import 'package:flowx/flowx.dart';
+import 'package:flowx/src/collectors/safe_collector.dart';
+import 'package:flowx/src/exceptions/flow_exception.dart';
+import 'package:flowx/src/task_pool_executor.dart';
 
 
 /// An abstract interface representing a Flow that supports caching.

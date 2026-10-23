@@ -1,8 +1,7 @@
 import 'dart:async';
 
-import 'package:flow/flow.dart';
-import 'package:flow/src/collectors/collectors.dart';
-import 'collectors/flow_collector.dart';
+import 'package:flowx/flowx.dart';
+import 'package:flowx/src/collectors/collectors.dart';
 import 'collectors/producer_scope_impl.dart';
 import 'collectors/safe_collector.dart';
 import 'task_pool_executor.dart';
